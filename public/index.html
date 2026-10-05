@@ -280,11 +280,11 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
       <div><span class="fl">Tipo</span><div class="pick" id="pickT"><button type="button" data-t="novo" aria-pressed="false">Novo seguro</button><button type="button" data-t="renovacao" aria-pressed="false">Renovação</button></div></div>
       <div><label class="fl" for="fSeg">Seguradora</label><select class="inp" id="fSeg"></select></div>
       <div class="r2">
-        <div><label class="fl" for="fVal">Prêmio líquido (R$)</label><input class="inp" type="number" id="fVal" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required></div>
+        <div><label class="fl" for="fVal" id="lVal">Prêmio líquido (R$)</label><input class="inp" type="number" id="fVal" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required></div>
         <div><label class="fl" for="fData">Data</label><input class="inp" type="date" id="fData"></div>
       </div>
       <div class="r2">
-        <div><label class="fl" for="fPct">Comissão (% do prêmio líquido)</label><input class="inp" type="number" id="fPct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Ex.: 15" required></div>
+        <div><label class="fl" for="fPct" id="lPct">Comissão (% do prêmio líquido)</label><input class="inp" type="number" id="fPct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Ex.: 15" required></div>
         <div><label class="fl" for="fCli">Nome do cliente</label><input class="inp" type="text" id="fCli" maxlength="80" placeholder="Obrigatório" required></div>
       </div>
       <div class="hint" style="font-size:12px;opacity:.7">Percentual e cliente ficam visíveis só para o Master.</div>
@@ -427,7 +427,7 @@ function salesTable(list,del,master){
   if(!list.length)return `<div class="empty">Nenhuma venda neste mês. Use <b>Registrar venda</b> para lançar a primeira.</div>`;
   return `<table><thead><tr><th>Data</th><th>Vendedora</th><th>Produto</th><th>Tipo</th><th>Seguradora</th><th class="r">Prêmio</th><th class="r">Pontos</th>${master?"<th>Cliente</th><th class=\"r\">Comissão %</th><th class=\"r\">Comissão R$</th>":""}${del?"<th></th>":""}</tr></thead><tbody>${
     [...list].sort(byNew).map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto,pts:0};
-      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
+      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}${s.credito?` <small>(crédito ${R(s.credito)})</small>`:""}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
 }
 
 /* ---- master ---- */
@@ -519,6 +519,9 @@ function upd(){
   const p=selP&&prod(selP);
   if(p&&p.porto){$("fSeg").value="PORTO";$("fSeg").disabled=true}else $("fSeg").disabled=false;
   document.querySelectorAll("#pickT [data-t]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.t===selT));
+  const cr=!!(p&&p.porto);
+  $("lVal").textContent=cr?"Valor do crédito (R$)":"Prêmio líquido (R$)";$("lPct").textContent=cr?"Comissão (% do crédito)":"Comissão (% do prêmio líquido)";
+  $("fPct").disabled=cr;if(cr)$("fPct").value="0.3";else if($("fPct").value==="0.3")$("fPct").value="";
   const pt=p?pontos(selP,$("fVal").value):0;
   $("pvPts").textContent="+"+pt;
   $("pvTxt").textContent=selV&&p?`${vend(selV).nome} marca ${pt} pontos`+(p.porto?" (só Porto)":REDUZ.includes(selP)&&pt<p.pts?` (prêmio líquido abaixo de ${R(RULES.minimo)})`:""):"Escolha vendedora e produto";
@@ -539,14 +542,15 @@ async function save(){
   if(!selV||!p){$("fErr").textContent="Escolha a vendedora e o produto.";return}
   if(!selT){$("fErr").textContent="Informe se é novo seguro ou renovação.";return}
   const seg=p.porto?"PORTO":$("fSeg").value;if(!seg){$("fErr").textContent="Escolha a seguradora.";return}
-  if(!(+$("fVal").value>0)){$("fErr").textContent="Informe o prêmio líquido.";return}
-  const pct=+String($("fPct").value).replace(",",".");if(!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
+  const cr=!!p.porto;
+  if(!(+$("fVal").value>0)){$("fErr").textContent=cr?"Informe o valor do crédito.":"Informe o prêmio líquido.";return}
+  const pct=cr?0.3:+String($("fPct").value).replace(",",".");if(!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
   const cli=$("fCli").value.trim();if(!cli){$("fErr").textContent="Informe o nome do cliente.";return}
   const dt=$("fData").value;if(!dt){$("fErr").textContent="Informe a data da venda.";return}
   if(!db){$("fErr").textContent="Sem conexão com o servidor. Recarregue a página.";return}
   saving=true;$("mSave").disabled=true;
   try{
-    await db.collection("vendas").add({vendedora:selV,produto:selP,seguradora:seg,valor:Math.max(0,+$("fVal").value||0),data:dt,tipo:selT,cliente:cli,percentual:pct,ts:Date.now()});
+    await db.collection("vendas").add({vendedora:selV,produto:selP,seguradora:seg,...(cr?{credito:+$("fVal").value}:{valor:Math.max(0,+$("fVal").value||0),percentual:pct}),data:dt,tipo:selT,cliente:cli,ts:Date.now()});
     closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${pontos(selP,$("fVal").value)} pontos para ${vend(selV).nome}`);
   }catch(err){$("fErr").textContent=/not_granted|permission|denied/.test(err.code||"")?"Este acesso é só de leitura.":"Não foi possível salvar: "+(err.message||err.code)}
   finally{saving=false;$("mSave").disabled=false}

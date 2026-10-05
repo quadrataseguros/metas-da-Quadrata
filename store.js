@@ -20,6 +20,7 @@ if (url) {
         criado_em TIMESTAMPTZ NOT NULL DEFAULT now())`);
       await q(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS cliente TEXT NOT NULL DEFAULT ''`);
       await q(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'novo'`);
+      await q(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS credito NUMERIC`);
       await q(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS percentual NUMERIC`);
       await q(`ALTER TABLE vendas ADD COLUMN IF NOT EXISTS comissao NUMERIC`);
       await q(`CREATE INDEX IF NOT EXISTS vendas_data ON vendas (data)`);
@@ -29,7 +30,7 @@ if (url) {
     async estado() {
       const [v, h, c] = await Promise.all([
         q(`SELECT id, vendedora, produto, seguradora, valor::float AS valor, to_char(data,'YYYY-MM-DD') AS data, obs, ts,
-                tipo, cliente, percentual::float AS percentual, comissao::float AS comissao
+                tipo, cliente, percentual::float AS percentual, comissao::float AS comissao, credito::float AS credito
            FROM vendas WHERE data >= (current_date - interval '400 days') ORDER BY data DESC, ts DESC`),
         q(`SELECT chave, valores FROM historico`),
         q(`SELECT dados FROM config WHERE id = 'regras'`),
@@ -43,8 +44,8 @@ if (url) {
     },
     async addVenda(v) {
       const id = crypto.randomUUID();
-      await q(`INSERT INTO vendas (id, vendedora, produto, seguradora, valor, data, obs, ts, cliente, percentual, comissao, tipo) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-        [id, v.vendedora, v.produto, v.seguradora, v.valor, v.data, v.obs, v.ts, v.cliente, v.percentual, v.comissao, v.tipo]);
+      await q(`INSERT INTO vendas (id, vendedora, produto, seguradora, valor, data, obs, ts, cliente, percentual, comissao, tipo, credito) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+        [id, v.vendedora, v.produto, v.seguradora, v.valor, v.data, v.obs, v.ts, v.cliente, v.percentual, v.comissao, v.tipo, v.credito]);
       return { id, ...v };
     },
     delVenda: (id) => q(`DELETE FROM vendas WHERE id = $1`, [id]),

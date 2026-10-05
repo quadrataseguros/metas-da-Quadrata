@@ -23,7 +23,9 @@ if (!MASTER_PASSWORD || Object.values(PINS).some((p) => !p)) {
 }
 
 // Percentual, comissão e nome do cliente são sigilosos: só o master recebe.
-const SIGILO = ["cliente", "percentual", "comissao"];
+const SIGILO = ["cliente", "percentual", "comissao", "credito"];
+// Consórcio e financiamento: a venda vale 0,3% do crédito (esse valor entra como produção e como comissão).
+const PCT_CREDITO = 0.3;
 const publica = (v) => { const o = { ...v }; for (const k of SIGILO) delete o[k]; return o; };
 
 const VENDEDORAS = ["dyovanna", "anaclara", "alana", "fabricio"];
@@ -118,7 +120,7 @@ function premiacoes(e) {
     const tot = lista.reduce((a, v) => a + (+v.valor || 0), 0);
     const base = Object.values(((e.historico || {})[(+chave.slice(0, 4) - 1) + chave.slice(4)] || {}).valores || {})
       .reduce((a, prods) => a + Object.values(prods).reduce((b, x) => b + (+x || 0), 0), 0);
-    const comp = lista.filter((v) => v.comissao != null);
+    const comp = lista.filter((v) => v.comissao != null && !SO_PORTO.includes(v.produto));
     const prem = comp.reduce((a, v) => a + (+v.valor || 0), 0), com = comp.reduce((a, v) => a + (+v.comissao || 0), 0);
     let pool = 0;
     if (base > 0 && tot > base && prem > 0 && !(r.premioSoNaMeta && tot < base * gr)) pool = (tot - base) * (com / prem) * pct / 100;
@@ -151,14 +153,23 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
     if (!["novo", "renovacao"].includes(tipo)) return res.status(400).json({ erro: "Informe se é novo seguro ou renovação." });
     const cliente = String(b.cliente || "").trim().slice(0, 80);
     if (!cliente) return res.status(400).json({ erro: "Informe o nome do cliente." });
-    const percentual = Number(String(b.percentual ?? "").replace(",", "."));
-    if (!(percentual > 0 && percentual <= 100)) return res.status(400).json({ erro: "Informe o percentual de comissão (entre 0 e 100)." });
-    const valor = Math.max(0, Math.min(1e9, +b.valor || 0));
-    if (!(valor > 0)) return res.status(400).json({ erro: "Informe o prêmio líquido." });
+    let percentual, valor, comissao, credito = null;
+    if (SO_PORTO.includes(produto)) {
+      credito = Math.max(0, Math.min(1e10, +b.credito || 0));
+      if (!(credito > 0)) return res.status(400).json({ erro: "Informe o valor do crédito." });
+      percentual = PCT_CREDITO;
+      valor = comissao = Math.round(credito * PCT_CREDITO) / 100;
+    } else {
+      percentual = Number(String(b.percentual ?? "").replace(",", "."));
+      if (!(percentual > 0 && percentual <= 100)) return res.status(400).json({ erro: "Informe o percentual de comissão (entre 0 e 100)." });
+      valor = Math.max(0, Math.min(1e9, +b.valor || 0));
+      if (!(valor > 0)) return res.status(400).json({ erro: "Informe o prêmio líquido." });
+      comissao = Math.round(valor * percentual) / 100;
+    }
     const venda = await store.addVenda({
       vendedora, produto, seguradora, data, valor, tipo,
       obs: "", ts: Date.now(),
-      cliente, percentual, comissao: Math.round(valor * percentual) / 100,
+      cliente, percentual, comissao, credito,
     });
     broadcast({ tipo: "venda", venda: publica(venda) });
     res.json(req.role === "master" ? venda : publica(venda));
