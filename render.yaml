@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: arena-quadrata
+    runtime: node
+    plan: starter
+    region: virginia
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: arena-quadrata-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MONITOR_KEY
+        generateValue: true
+      - key: MASTER_PASSWORD
+        sync: false
+      - key: PIN_DYOVANNA
+        sync: false
+      - key: PIN_ANACLARA
+        sync: false
+      - key: PIN_ALANA
+        sync: false
+
+databases:
+  - name: arena-quadrata-db
+    plan: basic-256mb
+    region: virginia
+    databaseName: arena_quadrata

@@ -1,0 +1,10 @@
+{
+  "name": "arena-quadrata",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel de metas da equipe da Quadrata Seguros",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" },
+  "dependencies": { "express": "^5.2.1", "pg": "^8.23.1" }
+}
