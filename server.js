@@ -127,6 +127,8 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
     if (!PRODUTOS.includes(produto)) return res.status(400).json({ erro: "Produto inválido." });
     if (!SEGURADORAS.includes(seguradora)) return res.status(400).json({ erro: "Seguradora inválida." });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ erro: "Data inválida." });
+    const tipo = String(b.tipo || "");
+    if (!["novo", "renovacao"].includes(tipo)) return res.status(400).json({ erro: "Informe se é novo seguro ou renovação." });
     const cliente = String(b.cliente || "").trim().slice(0, 80);
     if (!cliente) return res.status(400).json({ erro: "Informe o nome do cliente." });
     const percentual = Number(String(b.percentual ?? "").replace(",", "."));
@@ -134,7 +136,7 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
     const valor = Math.max(0, Math.min(1e9, +b.valor || 0));
     if (!(valor > 0)) return res.status(400).json({ erro: "Informe o prêmio líquido." });
     const venda = await store.addVenda({
-      vendedora, produto, seguradora, data, valor,
+      vendedora, produto, seguradora, data, valor, tipo,
       obs: "", ts: Date.now(),
       cliente, percentual, comissao: Math.round(valor * percentual) / 100,
     });
