@@ -54,6 +54,18 @@ main{max-width:1240px;margin:0 auto;padding:22px 16px 60px;display:flex;flex-dir
 h2{font-family:var(--f-num);font-size:15px;font-weight:600;margin:0;letter-spacing:.01em}
 .cap{font-size:12px;color:var(--fg3)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px;min-width:0}
+.hl{border-color:var(--brand);background:linear-gradient(135deg,var(--brand-soft),var(--card) 70%)}
+.pz-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pz-top span{font-size:13px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.04em}
+.pz-top b{font-size:34px;font-weight:700;color:var(--brand)}
+.pz-sub{font-size:13px;color:var(--fg2);margin:4px 0 12px}
+.pz-pos{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px}
+.pz-pos>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px}
+.pz-pos small{display:block;font-size:11.5px;color:var(--fg3);font-weight:600}
+.pz-pos b{display:block;font-size:19px;font-weight:600;margin-top:2px}
+.pz-pos span{font-size:12px;color:var(--fg2)}
+.tv-hl .pz-top b{font-size:clamp(28px,3vw,58px)}.tv-hl .pz-top span{font-size:clamp(12px,1vw,18px)}.tv-hl .pz-sub{font-size:clamp(12px,.95vw,17px)}
+.tv-hl .pz-pos b{font-size:clamp(18px,1.7vw,32px)}.tv-hl .pz-pos small,.tv-hl .pz-pos span{font-size:clamp(11px,.85vw,16px)}
 .card-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .grid2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:20px}
 @media (max-width:880px){.grid2{grid-template-columns:minmax(0,1fr)}}
@@ -226,6 +238,7 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 <main id="app">
   <div class="note" id="note" hidden></div>
   <div class="kpis" id="kpis"></div>
+  <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><section class="card hl" id="prem"></section><section class="card hl" id="cred"></section></div>
   <div class="grid2">
     <section class="card"><div class="card-h"><h2>Ranking do mês</h2><span class="cap" id="rankCap"></span></div><div class="rank" id="rank"></div></section>
     <section class="card"><div class="card-h"><h2>Seguradoras × ano anterior</h2><span class="cap" id="segCap">meta = ano anterior + 18%</span></div><div class="segs" id="segs"></div>
@@ -263,6 +276,7 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
     <div class="tv-clock"><b id="tvClock">--:--</b><span id="tvDate"></span></div>
   </div>
   <div class="kpis tv-kpis" id="tvKpis"></div>
+  <div class="grid2 tv-hl" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><section class="card hl" id="tvPrem"></section><section class="card hl" id="tvCred"></section></div>
   <div class="tv-grid">
     <section class="card"><div class="card-h"><h2>Ranking do mês</h2></div><div class="rank" id="tvRank"></div></section>
     <section class="card"><div class="card-h"><h2>Seguradoras × ano anterior</h2><span class="cap">traço = mesmo mês do ano anterior</span></div><div class="segs" id="tvSegs"></div></section>
@@ -321,6 +335,7 @@ const now=new Date(); let VY=now.getFullYear(), VM=now.getMonth();
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,"0");
 const ym=(y,m)=>y+"-"+pad(m+1);
+const isCred=s=>s.produto==="consorcio"||s.produto==="financ";
 const R2=v=>(+v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const R=v=>(+v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
 const Rk=v=>{v=+v||0;return v>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":v>=1e4?"R$ "+Math.round(v/1e3)+" mil":R(v)};
@@ -342,21 +357,24 @@ function calc(){
   const D=data(),k=ym(VY,VM),list=D.sales.filter(s=>s.data&&s.data.startsWith(k));
   const prev=(D.hist[ym(VY-1,VM)]||{}).valores||{};
   const gr=1+(+RULES.crescimento||0)/100;
+  const seg0=list.filter(s=>!isCred(s)),cred=list.filter(isCred);
   const people=VEND.map(v=>{const mine=list.filter(s=>s.vendedora===v.id);
-    return {...v,pts:mine.reduce((a,s)=>a+ptsVenda(s),0),n:mine.length,premio:mine.reduce((a,s)=>a+(+s.valor||0),0)}}).sort((a,b)=>b.pts-a.pts||b.premio-a.premio);
+    return {...v,pts:mine.reduce((a,s)=>a+ptsVenda(s),0),n:mine.length,premio:mine.filter(s=>!isCred(s)).reduce((a,s)=>a+(+s.valor||0),0),
+      nCred:mine.filter(isCred).length,credito:mine.filter(isCred).reduce((a,s)=>a+(+s.credito||0),0)}}).sort((a,b)=>b.pts-a.pts||b.premio-a.premio);
   const segs=[];
   SEGS.forEach(sg=>{const g=grupoDe(sg)||[sg],key=g[0];if(segs.some(x=>x.sg===key))return;
-    const cur=list.filter(x=>g.includes(x.seguradora||"OUTRA")).reduce((a,x)=>a+(+x.valor||0),0);
+    const cur=seg0.filter(x=>g.includes(x.seguradora||"OUTRA")).reduce((a,x)=>a+(+x.valor||0),0);
     const pv=g.reduce((a,m)=>a+Object.values(prev[m]||{}).reduce((b,x)=>b+(+x||0),0),0);
     segs.push({sg:key,nome:g.map(segNome).join(" + "),cur,prev:pv,meta:pv*gr})});
   const segsAtivos=segs.filter(s=>s.cur>0||s.prev>0);
-  const prods=RULES.produtos.map(p=>{const mine=list.filter(s=>s.produto===p.id);
+  const prods=RULES.produtos.filter(p=>!p.porto).map(p=>{const mine=list.filter(s=>s.produto===p.id);
     const pv=Object.values(prev).reduce((a,o)=>a+(+(o||{})[p.id]||0),0);
     return {...p,cur:mine.reduce((a,s)=>a+(+s.valor||0),0),n:mine.length,prev:pv,meta:pv*gr}});
-  const tot=list.reduce((a,s)=>a+(+s.valor||0),0), prevTot=segs.reduce((a,s)=>a+s.prev,0);
-  const ren=list.filter(s=>s.tipo==="renovacao").length,nov=list.filter(s=>s.tipo!=="renovacao").length;
+  const tot=seg0.reduce((a,s)=>a+(+s.valor||0),0), prevTot=segs.reduce((a,s)=>a+s.prev,0);
+  const ren=seg0.filter(s=>s.tipo==="renovacao").length,nov=seg0.filter(s=>s.tipo!=="renovacao").length;
   const pool=PREM[k]||0;
-  return {list,pool,ren,nov,people,segs:segsAtivos,prods,tot,prevTot,teamPts:people.reduce((a,p)=>a+p.pts,0),hasPrev:prevTot>0};
+  const credTot={n:cred.length,valor:cred.reduce((a,s)=>a+(+s.credito||0),0),pessoas:people.filter(p=>p.nCred>0).sort((a,b)=>b.credito-a.credito)};
+  return {list,seg0,credTot,pool,ren,nov,people,segs:segsAtivos,prods,tot,prevTot,teamPts:people.reduce((a,p)=>a+p.pts,0),hasPrev:prevTot>0};
 }
 function lvl(p){let cur=null,next=RULES.niveis[0];for(const l of RULES.niveis){if(p>=l.pts){cur=l;next=null}else{next=l;break}}return{cur,next}}
 const goalPts=()=>(RULES.niveis.find(l=>l.meta)||RULES.niveis[RULES.niveis.length-1]).pts;
@@ -367,10 +385,22 @@ function kpisHTML(C){
   const d=delta(C.tot,C.prevTot),gp=goalPts();
   const left=(()=>{const last=new Date(VY,VM+1,0).getDate();if(VY===now.getFullYear()&&VM===now.getMonth())return last-now.getDate();return new Date(VY,VM,1)>now?last:0})();
   const M=RULES.metas||{},meta=(l,c,m)=>`<div class="card kpi"><div class="l">${l}</div><div class="v n">${c}<span style="font-size:.5em;color:var(--fg3)"> / ${m}</span></div><div class="s">${c>=m?"meta batida":"faltam "+(m-c)}</div><div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,m?c/m*100:0)}%;background:var(--brand)"></i></div></div>`;
-  return meta("Renovações do mês",C.ren,M.renovacoes||0)+meta("Novos seguros do mês",C.nov,M.novos||0)+`<div class="card kpi"><div class="l">Prêmio vendido no mês</div><div class="v n">${R(C.tot)}</div><div class="s">${C.list.length} venda${C.list.length===1?"":"s"}</div></div>
+  return meta("Renovações do mês",C.ren,M.renovacoes||0)+meta("Novos seguros do mês",C.nov,M.novos||0)+`<div class="card kpi"><div class="l">Prêmio vendido no mês</div><div class="v n">${R(C.tot)}</div><div class="s">${C.seg0.length} venda${C.seg0.length===1?"":"s"} (sem consórcio e financiamento)</div></div>
   <div class="card kpi"><div class="l">Contra o ano anterior</div><div class="v n ${d==null?"":d>=0?"up":"down"}">${d==null?"—":(d>0?"+":"")+d+"%"}</div><div class="s">${C.hasPrev?(C.tot>C.prevTot?`premiação da equipe <b>${R2(C.pool)}</b>`:`faltam ${R(C.prevTot-C.tot)} para igualar o ano anterior`):"ano anterior não lançado"}</div></div>
   <div class="card kpi"><div class="l">Pontos da equipe</div><div class="v n">${C.teamPts}<span style="font-size:.5em;color:var(--fg3)"> / ${RULES.metaEquipe}</span></div><div class="s">${C.teamPts>=RULES.metaEquipe?"meta da equipe batida":"faltam "+(RULES.metaEquipe-C.teamPts)+" pts"}</div></div>
   <div class="card kpi"><div class="l">Dias para fechar o mês</div><div class="v n">${left}</div><div class="s">meta individual ${gp} pts</div></div>`;
+}
+function premioHTML(C){
+  const dv=RULES.premioDiv||[50,30,20],top=C.people.filter(p=>p.pts>0).slice(0,3),falta=C.prevTot-C.tot;
+  return `<div class="pz-top"><span>Premiação da equipe</span><b class="n">${C.hasPrev?R2(C.pool):"—"}</b></div>
+  <div class="pz-sub">${!C.hasPrev?"ano anterior ainda não lançado":C.tot>C.prevTot?"10% da comissão gerada acima de "+R(C.prevTot)+" (produção do ano anterior)":`começa a contar depois de ${R(C.prevTot)} em produção · faltam <b>${R(falta)}</b>`}</div>
+  <div class="pz-pos">${[0,1,2].map(i=>`<div><small>${i+1}º lugar · ${dv[i]??0}%</small><b class="n">${R2(C.pool*(dv[i]??0)/100)}</b><span>${top[i]?esc(top[i].nome):"—"}</span></div>`).join("")}</div>`;
+}
+function credHTML(C){
+  const T=C.credTot;
+  return `<div class="pz-top"><span>Consórcio e financiamento</span><b class="n">${T.n} venda${T.n===1?"":"s"}</b></div>
+  <div class="pz-sub">${T.n?`<b>${R(T.valor)}</b> em crédito vendido · cada venda vale 0,3% do crédito`:"Produto de alta rentabilidade (só Porto). Cada venda vale 0,3% do crédito. Ainda sem vendas no mês."}</div>
+  ${T.pessoas.length?`<div class="pz-pos">${T.pessoas.map(p=>`<div><small>${esc(p.nome)}</small><b class="n">${R(p.credito)}</b><span>${p.nCred} venda${p.nCred===1?"":"s"}</span></div>`).join("")}</div>`:""}`;
 }
 function rankHTML(C){
   const gp=goalPts(),max=Math.max(gp*1.15,...C.people.map(p=>p.pts));
@@ -404,7 +434,7 @@ function render(){
   else nt.hidden=true;
 
   if(VIEW==="vendedoras"){
-    $("kpis").innerHTML=kpisHTML(C);
+    $("kpis").innerHTML=kpisHTML(C);$("prem").innerHTML=premioHTML(C);$("cred").innerHTML=credHTML(C);
     $("rank").innerHTML=rankHTML(C);
     $("rankCap").textContent=`meta ${goalPts()} pts`;
     $("segs").innerHTML=segsHTML(C);
@@ -415,7 +445,7 @@ function render(){
   }
   if(VIEW==="monitor"){
     $("tvMonth").textContent=new Date(VY,VM,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
-    $("tvKpis").innerHTML=kpisHTML(C);$("tvRank").innerHTML=rankHTML(C);$("tvSegs").innerHTML=segsHTML(C);
+    $("tvKpis").innerHTML=kpisHTML(C);$("tvPrem").innerHTML=premioHTML(C);$("tvCred").innerHTML=credHTML(C);$("tvRank").innerHTML=rankHTML(C);$("tvSegs").innerHTML=segsHTML(C);
     const last=[...C.list].sort(byNew).slice(0,6);
     $("tvTicker").innerHTML=last.map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto,pts:0};
       return `<div class="tk ${s.id===FRESH?"new":""}"><span class="dot" style="background:${v.cor}"></span><b>${esc(v.nome)}</b> ${esc(p.nome)} · ${segNome(s.seguradora||"OUTRA")}${+s.valor?" · "+Rk(s.valor):""} <span class="g">+${ptsVenda(s)}</span></div>`}).join("");
@@ -427,7 +457,7 @@ function salesTable(list,del,master){
   if(!list.length)return `<div class="empty">Nenhuma venda neste mês. Use <b>Registrar venda</b> para lançar a primeira.</div>`;
   return `<table><thead><tr><th>Data</th><th>Vendedora</th><th>Produto</th><th>Tipo</th><th>Seguradora</th><th class="r">Prêmio</th><th class="r">Pontos</th>${master?"<th>Cliente</th><th class=\"r\">Comissão %</th><th class=\"r\">Comissão R$</th>":""}${del?"<th></th>":""}</tr></thead><tbody>${
     [...list].sort(byNew).map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto,pts:0};
-      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}${s.credito?` <small>(crédito ${R(s.credito)})</small>`:""}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
+      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${s.credito?`<small>crédito</small> ${R(s.credito)}`:+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
 }
 
 /* ---- master ---- */
@@ -440,8 +470,9 @@ function renderMaster(C){
   if(!histDirty||$("hist").dataset.key!==key){
     histDirty=false;$("hist").dataset.key=key;
     const v=(HIST[key]||{}).valores||{};
-    $("hist").innerHTML=`<thead><tr><th>Seguradora</th>${RULES.produtos.map(p=>`<th class="r">${esc(p.nome)}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>${
-      SEGS.map((sg,r)=>`<tr><td class="strong">${segNome(sg)}</td>${RULES.produtos.map((p,c)=>{const dis=p.porto&&sg!=="PORTO";const val=(v[sg]||{})[p.id];
+    const PH=RULES.produtos.filter(p=>!p.porto);
+    $("hist").innerHTML=`<thead><tr><th>Seguradora</th>${PH.map(p=>`<th class="r">${esc(p.nome)}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>${
+      SEGS.map((sg,r)=>`<tr><td class="strong">${segNome(sg)}</td>${PH.map((p,c)=>{const dis=p.porto&&sg!=="PORTO";const val=(v[sg]||{})[p.id];
         return `<td><input id="h_${r}_${c}" data-sg="${sg}" data-p="${p.id}" data-r="${r}" data-c="${c}" inputmode="decimal" ${dis?"disabled title='Só pela Porto'":""} value="${val?String(val).replace(".",","):""}" placeholder="0" aria-label="${segNome(sg)} ${esc(p.nome)}"></td>`}).join("")}<td class="tot n" id="ht_${r}"></td></tr>`).join("")}</tbody>`;
     sumHist();
     $("histMsg").textContent=HIST[key]?"Lançado. Altere e salve para corrigir.":"Ainda não lançado.";

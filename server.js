@@ -23,8 +23,8 @@ if (!MASTER_PASSWORD || Object.values(PINS).some((p) => !p)) {
 }
 
 // Percentual, comissão e nome do cliente são sigilosos: só o master recebe.
-const SIGILO = ["cliente", "percentual", "comissao", "credito"];
-// Consórcio e financiamento: a venda vale 0,3% do crédito (esse valor entra como produção e como comissão).
+const SIGILO = ["cliente", "percentual", "comissao"];
+// Consórcio e financiamento: comissão de 0,3% do crédito. Ficam fora da produção (valor = 0) e aparecem à parte.
 const PCT_CREDITO = 0.3;
 const publica = (v) => { const o = { ...v }; for (const k of SIGILO) delete o[k]; return o; };
 
@@ -117,7 +117,7 @@ function premiacoes(e) {
   for (const v of e.vendas || []) (meses[v.data.slice(0, 7)] ??= []).push(v);
   const out = {};
   for (const [chave, lista] of Object.entries(meses)) {
-    const tot = lista.reduce((a, v) => a + (+v.valor || 0), 0);
+    const tot = lista.filter((v) => !SO_PORTO.includes(v.produto)).reduce((a, v) => a + (+v.valor || 0), 0);
     const base = Object.values(((e.historico || {})[(+chave.slice(0, 4) - 1) + chave.slice(4)] || {}).valores || {})
       .reduce((a, prods) => a + Object.values(prods).reduce((b, x) => b + (+x || 0), 0), 0);
     const comp = lista.filter((v) => v.comissao != null && !SO_PORTO.includes(v.produto));
@@ -158,7 +158,8 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
       credito = Math.max(0, Math.min(1e10, +b.credito || 0));
       if (!(credito > 0)) return res.status(400).json({ erro: "Informe o valor do crédito." });
       percentual = PCT_CREDITO;
-      valor = comissao = Math.round(credito * PCT_CREDITO) / 100;
+      valor = 0;
+      comissao = Math.round(credito * PCT_CREDITO) / 100;
     } else {
       percentual = Number(String(b.percentual ?? "").replace(",", "."));
       if (!(percentual > 0 && percentual <= 100)) return res.status(400).json({ erro: "Informe o percentual de comissão (entre 0 e 100)." });
