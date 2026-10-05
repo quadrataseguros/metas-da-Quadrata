@@ -13,7 +13,7 @@ Financiamento e consórcio contam só pela Porto. A meta por seguradora é o mes
 1. No Render, clique em **New > Blueprint** e escolha este repositório. O arquivo `render.yaml` cria o site e o banco Postgres.
 2. Preencha as variáveis que o Render pedir:
    - `MASTER_PASSWORD`: a senha master (só do Fabricio).
-   - `PIN_DYOVANNA`, `PIN_ANACLARA` e `PIN_ALANA`: o PIN de cada vendedora.
+   - `PIN_DYOVANNA`, `PIN_ANACLARA`, `PIN_ALANA` e `PIN_FABRICIO`: o PIN de cada vendedor.
 3. Depois do deploy, abra **Environment** no serviço `arena-quadrata` e copie o valor de `MONITOR_KEY`. O link da TV é `https://SEU-ENDERECO.onrender.com/tv?k=MONITOR_KEY`.
 
 Para trocar uma senha ou PIN, altere a variável no Render; o site reinicia sozinho. Quem já estava logado continua logado até sair. Para derrubar todos os acessos, gere um novo `SESSION_SECRET`.
@@ -22,7 +22,7 @@ Para trocar uma senha ou PIN, altere a variável no Render; o site reinicia sozi
 
 ```
 npm install
-MASTER_PASSWORD=teste PIN_DYOVANNA=1 PIN_ANACLARA=2 PIN_ALANA=3 MONITOR_KEY=tv npm start
+MASTER_PASSWORD=teste PIN_DYOVANNA=1 PIN_ANACLARA=2 PIN_ALANA=3 PIN_FABRICIO=4 MONITOR_KEY=tv npm start
 ```
 
 Sem `DATABASE_URL`, os dados ficam no arquivo `dados-local.json`.

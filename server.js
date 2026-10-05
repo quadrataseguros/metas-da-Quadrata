@@ -11,6 +11,7 @@ const PINS = {
   dyovanna: process.env.PIN_DYOVANNA || "",
   anaclara: process.env.PIN_ANACLARA || "",
   alana: process.env.PIN_ALANA || "",
+  fabricio: process.env.PIN_FABRICIO || "",
 };
 const MONITOR_KEY = process.env.MONITOR_KEY || "";
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -18,10 +19,10 @@ const COOKIE = "arena_sessao";
 const MAX_AGE_DAYS = 180;
 
 if (!MASTER_PASSWORD || Object.values(PINS).some((p) => !p)) {
-  console.warn("Aviso: defina MASTER_PASSWORD, PIN_DYOVANNA, PIN_ANACLARA e PIN_ALANA nas variáveis de ambiente.");
+  console.warn("Aviso: defina MASTER_PASSWORD, PIN_DYOVANNA, PIN_ANACLARA, PIN_ALANA e PIN_FABRICIO nas variáveis de ambiente.");
 }
 
-const VENDEDORAS = ["dyovanna", "anaclara", "alana"];
+const VENDEDORAS = ["dyovanna", "anaclara", "alana", "fabricio"];
 const PRODUTOS = ["auto", "resid", "vida", "empre", "outros", "financ", "consorcio"];
 const SO_PORTO = ["financ", "consorcio"];
 const SEGURADORAS = ["PORTO", "AZUL", "ITAÚ", "ALLIANZ", "TOKIO MARINE", "BRADESCO", "YELLUM", "HDI", "SUHAI", "ZURICH", "OUTRA"];

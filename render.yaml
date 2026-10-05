@@ -26,6 +26,8 @@ services:
         sync: false
       - key: PIN_ALANA
         sync: false
+      - key: PIN_FABRICIO
+        sync: false
 
 databases:
   - name: arena-quadrata-db
