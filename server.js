@@ -107,11 +107,31 @@ app.get("/tv", (req, res) => {
 app.get("/api/eu", (req, res) => res.json({ role: req.role || null, vendedora: req.vendedora || null }));
 
 /* ---------- dados ---------- */
+// Premiação do mês: premioPct% da comissão gerada pelo que passou do mesmo mês do ano anterior.
+// A comissão fica só no servidor; o painel recebe apenas o valor da premiação.
+function premiacoes(e) {
+  const r = e.regras || {}, pct = +(r.premioPct ?? 10), gr = 1 + (+(r.crescimento ?? 18)) / 100;
+  const meses = {};
+  for (const v of e.vendas || []) (meses[v.data.slice(0, 7)] ??= []).push(v);
+  const out = {};
+  for (const [chave, lista] of Object.entries(meses)) {
+    const tot = lista.reduce((a, v) => a + (+v.valor || 0), 0);
+    const base = Object.values(((e.historico || {})[(+chave.slice(0, 4) - 1) + chave.slice(4)] || {}).valores || {})
+      .reduce((a, prods) => a + Object.values(prods).reduce((b, x) => b + (+x || 0), 0), 0);
+    const comp = lista.filter((v) => v.comissao != null);
+    const prem = comp.reduce((a, v) => a + (+v.valor || 0), 0), com = comp.reduce((a, v) => a + (+v.comissao || 0), 0);
+    let pool = 0;
+    if (base > 0 && tot > base && prem > 0 && !(r.premioSoNaMeta && tot < base * gr)) pool = (tot - base) * (com / prem) * pct / 100;
+    out[chave] = Math.round(pool * 100) / 100;
+  }
+  return out;
+}
 const READ = need("master", "equipe", "monitor");
 app.get("/api/estado", READ, async (req, res, next) => {
   try {
     const e = await store.estado();
-    res.json(req.role === "master" ? e : { ...e, vendas: (e.vendas || []).map(publica) });
+    const premiacao = premiacoes(e);
+    res.json(req.role === "master" ? { ...e, premiacao } : { ...e, vendas: (e.vendas || []).map(publica), premiacao });
   } catch (e) { next(e); }
 });
 
