@@ -313,7 +313,7 @@ const DEFAULT_RULES={
   minimo:800, ptsBaixo:5,
   metas:{renovacoes:52,novos:18},
   niveis:[{nome:"Bronze",pts:100},{nome:"Prata",pts:150},{nome:"Ouro",pts:200,meta:true},{nome:"Diamante",pts:250}],
-  metaEquipe:800, crescimento:18,
+  metaEquipe:800, crescimento:18, premioPct:10,
   premios:{Bronze:"",Prata:"",Ouro:"",Diamante:"",equipe:""}
 };
 let RULES=DEFAULT_RULES, SALES=[], HIST={}, gotSales=false, gotHist=false, db=null, user=null, CAN_EDIT=false, VIEW="vendedoras";
@@ -367,7 +367,7 @@ function kpisHTML(C){
   const left=(()=>{const last=new Date(VY,VM+1,0).getDate();if(VY===now.getFullYear()&&VM===now.getMonth())return last-now.getDate();return new Date(VY,VM,1)>now?last:0})();
   const M=RULES.metas||{},meta=(l,c,m)=>`<div class="card kpi"><div class="l">${l}</div><div class="v n">${c}<span style="font-size:.5em;color:var(--fg3)"> / ${m}</span></div><div class="s">${c>=m?"meta batida":"faltam "+(m-c)}</div><div class="bar" style="margin-top:6px"><i style="width:${Math.min(100,m?c/m*100:0)}%;background:var(--brand)"></i></div></div>`;
   return meta("Renovações do mês",C.ren,M.renovacoes||0)+meta("Novos seguros do mês",C.nov,M.novos||0)+`<div class="card kpi"><div class="l">Prêmio vendido no mês</div><div class="v n">${R(C.tot)}</div><div class="s">${C.list.length} venda${C.list.length===1?"":"s"}</div></div>
-  <div class="card kpi"><div class="l">Contra o ano anterior</div><div class="v n ${d==null?"":d>=0?"up":"down"}">${d==null?"—":(d>0?"+":"")+d+"%"}</div><div class="s">${C.hasPrev?"base "+R(C.prevTot):"ano anterior não lançado"}</div></div>
+  <div class="card kpi"><div class="l">Contra o ano anterior</div><div class="v n ${d==null?"":d>=0?"up":"down"}">${d==null?"—":(d>0?"+":"")+d+"%"}</div><div class="s">${C.hasPrev?(C.tot>C.prevTot?`premiação da equipe <b>${R2((C.tot-C.prevTot)*(RULES.premioPct??10)/100)}</b>`:`faltam ${R(C.prevTot-C.tot)} para igualar o ano anterior`):"ano anterior não lançado"}</div></div>
   <div class="card kpi"><div class="l">Pontos da equipe</div><div class="v n">${C.teamPts}<span style="font-size:.5em;color:var(--fg3)"> / ${RULES.metaEquipe}</span></div><div class="s">${C.teamPts>=RULES.metaEquipe?"meta da equipe batida":"faltam "+(RULES.metaEquipe-C.teamPts)+" pts"}</div></div>
   <div class="card kpi"><div class="l">Dias para fechar o mês</div><div class="v n">${left}</div><div class="s">meta individual ${gp} pts</div></div>`;
 }
@@ -453,6 +453,7 @@ function renderMaster(C){
       <label for="rMin">Prêmio líquido mínimo (R$)<input id="rMin" type="number" min="0" value="${RULES.minimo}"></label>
       <label for="rPb">Pontos abaixo do mínimo<input id="rPb" type="number" min="0" value="${RULES.ptsBaixo}"></label>
       <label for="rEq">Meta da equipe<input id="rEq" type="number" min="0" value="${RULES.metaEquipe}"></label>
+      <label for="rPp">Premiação (% da diferença para o ano anterior)<input id="rPp" type="number" min="0" value="${RULES.premioPct??10}"></label>
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
@@ -485,7 +486,7 @@ $("rulesSave").onclick=async()=>{
   document.querySelectorAll("#rules input[data-k=nivel]").forEach(i=>{r.niveis[+i.dataset.i].pts=Math.max(0,+i.value||0)});
   document.querySelectorAll("#rules input[data-k=premio]").forEach(i=>{r.premios[i.dataset.id]=i.value.trim()});
   r.metas={renovacoes:Math.max(0,+$("rMr").value||0),novos:Math.max(0,+$("rMn").value||0)};r.minimo=Math.max(0,+$("rMin").value||0);r.ptsBaixo=Math.max(0,+$("rPb").value||0);
-  r.metaEquipe=Math.max(0,+$("rEq").value||0);r.crescimento=Math.max(0,+$("rCr").value||0);
+  r.metaEquipe=Math.max(0,+$("rEq").value||0);r.crescimento=Math.max(0,+$("rCr").value||0);r.premioPct=Math.max(0,+$("rPp").value||0);
   $("rulesSave").disabled=true;
   try{await db.doc("config/regras").set(r);rulesDirty=false;toast("Regras salvas")}
   catch(e){$("rulesMsg").textContent="Não foi possível salvar: "+(e.message||e.code)}finally{$("rulesSave").disabled=false}
