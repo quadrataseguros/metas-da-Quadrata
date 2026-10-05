@@ -1,4 +1,4 @@
-// Arena Quadrata: painel de metas da equipe da Quadrata Seguros.
+// Quadrata - Metas: painel de metas da equipe da Quadrata Seguros.
 // Três telas no mesmo endereço: #vendedoras, #master e #monitor.
 const express = require("express");
 const crypto = require("crypto");
@@ -184,4 +184,4 @@ app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
 app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ erro: "Erro no servidor. Tente de novo." }); });
 
-store.init().then(() => app.listen(PORT, () => console.log(`Arena Quadrata no ar na porta ${PORT} (${store.tipo})`)));
+store.init().then(() => app.listen(PORT, () => console.log(`Quadrata - Metas no ar na porta ${PORT} (${store.tipo})`)));

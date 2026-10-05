@@ -1,4 +1,4 @@
-# Arena Quadrata (metas-da-Quadrata)
+# Quadrata - Metas
 
 Painel de metas da equipe da Quadrata Seguros. Um único site com três telas que mostram os mesmos dados ao vivo:
 
