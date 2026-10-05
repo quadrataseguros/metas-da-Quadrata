@@ -3,6 +3,7 @@
 Painel de metas da equipe da Quadrata Seguros. Um único site com três telas que mostram os mesmos dados ao vivo:
 
 - **Vendedoras** (`/#vendedoras`): cada uma entra com o próprio nome e PIN. A venda sai sempre no nome de quem entrou.
+  Cada venda leva prêmio líquido, percentual de comissão e nome do cliente (obrigatórios). Percentual, comissão em R$ e cliente aparecem só no Master.
 - **Master** (`/#master`): entra com a senha master. Lança as vendas do ano anterior por seguradora e produto (aceita colar do Excel), ajusta pontos, níveis e premiação e apaga vendas lançadas por engano.
 - **Monitor** (`/tv?k=CHAVE`): link fixo para a TV, só leitura, atualiza sozinho e mostra um aviso em tela cheia a cada venda nova.
 

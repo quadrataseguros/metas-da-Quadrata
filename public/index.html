@@ -279,10 +279,14 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
       <div><span class="fl">Produto</span><div class="pick" id="pickP"></div></div>
       <div><label class="fl" for="fSeg">Seguradora</label><select class="inp" id="fSeg"></select></div>
       <div class="r2">
-        <div><label class="fl" for="fVal">Prêmio (R$)</label><input class="inp" type="number" id="fVal" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div>
+        <div><label class="fl" for="fVal">Prêmio líquido (R$)</label><input class="inp" type="number" id="fVal" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required></div>
         <div><label class="fl" for="fData">Data</label><input class="inp" type="date" id="fData"></div>
       </div>
-      <div><label class="fl" for="fObs">Cliente / observação</label><input class="inp" type="text" id="fObs" maxlength="80" placeholder="Opcional"></div>
+      <div class="r2">
+        <div><label class="fl" for="fPct">Comissão (% do prêmio líquido)</label><input class="inp" type="number" id="fPct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Ex.: 15" required></div>
+        <div><label class="fl" for="fCli">Nome do cliente</label><input class="inp" type="text" id="fCli" maxlength="80" placeholder="Obrigatório" required></div>
+      </div>
+      <div class="hint" style="font-size:12px;opacity:.7">Percentual e cliente ficam visíveis só para o Master.</div>
       <div class="pv"><span id="pvTxt">Escolha vendedora e produto</span><b id="pvPts" class="n">+0</b></div>
       <div class="err" id="fErr"></div>
     </form>
@@ -311,6 +315,7 @@ const now=new Date(); let VY=now.getFullYear(), VM=now.getMonth();
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,"0");
 const ym=(y,m)=>y+"-"+pad(m+1);
+const R2=v=>(+v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const R=v=>(+v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:0});
 const Rk=v=>{v=+v||0;return v>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximumFractionDigits:1})+" mi":v>=1e4?"R$ "+Math.round(v/1e3)+" mil":R(v)};
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -412,11 +417,11 @@ function render(){
   if(VIEW==="master")renderMaster(C);
 }
 const byNew=(a,b)=>(b.data+String(b.ts||0).padStart(15,"0")).localeCompare(a.data+String(a.ts||0).padStart(15,"0"));
-function salesTable(list,del){
+function salesTable(list,del,master){
   if(!list.length)return `<div class="empty">Nenhuma venda neste mês. Use <b>Registrar venda</b> para lançar a primeira.</div>`;
-  return `<table><thead><tr><th>Data</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Prêmio</th><th class="r">Pontos</th><th>Obs.</th>${del?"<th></th>":""}</tr></thead><tbody>${
+  return `<table><thead><tr><th>Data</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Prêmio</th><th class="r">Pontos</th>${master?"<th>Cliente</th><th class=\"r\">Comissão %</th><th class=\"r\">Comissão R$</th>":""}${del?"<th></th>":""}</tr></thead><tbody>${
     [...list].sort(byNew).map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto,pts:0};
-      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${p.pts}</td><td>${esc(s.obs)}</td>${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
+      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${p.pts}</td>${master?`<td>${esc(s.cliente||"—")}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
 }
 
 /* ---- master ---- */
@@ -442,7 +447,10 @@ function renderMaster(C){
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
-  $("mSales").innerHTML=salesTable(C.list,!isDemo());
+  $("mSales").innerHTML=salesTable(C.list,!isDemo(),true);
+  const tc=C.list.reduce((a,s)=>a+(+s.comissao||0),0),tp=C.list.reduce((a,s)=>a+(+s.valor||0),0);
+  $("mCom")?.remove();
+  $("mSales").insertAdjacentHTML("beforebegin",`<div class="cap" id="mCom" style="margin:0 0 8px">Prêmio líquido do mês: <b>${R2(tp)}</b> · Comissão do mês: <b>${R2(tc)}</b></div>`);
 }
 const num=s=>{s=String(s||"").trim().replace(/[R$\s]/g,"");if(!s)return 0;if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");return Math.max(0,+s||0)};
 function sumHist(){SEGS.forEach((sg,r)=>{let t=0;document.querySelectorAll(`#hist input[data-r="${r}"]`).forEach(i=>t+=num(i.value));const c=$("ht_"+r);if(c)c.textContent=t?R(t):""})}
@@ -483,7 +491,7 @@ $("mSales").addEventListener("click",async e=>{
 /* ---- registrar venda ---- */
 let selV=null,selP=null,saving=false;
 function openModal(){
-  selV=MEU||null;selP=null;$("fVal").value="";$("fObs").value="";$("fErr").textContent="";
+  selV=MEU||null;selP=null;$("fVal").value="";$("fPct").value="";$("fCli").value="";$("fErr").textContent="";
   const t=new Date();$("fData").value=t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());
   $("pickV").closest("div").hidden=!!MEU;
   $("pickV").innerHTML=VEND.map(v=>`<button type="button" data-v="${v.id}" aria-pressed="false"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</button>`).join("");
@@ -512,11 +520,14 @@ async function save(){
   if(saving)return;const p=selP&&prod(selP);
   if(!selV||!p){$("fErr").textContent="Escolha a vendedora e o produto.";return}
   const seg=p.porto?"PORTO":$("fSeg").value;if(!seg){$("fErr").textContent="Escolha a seguradora.";return}
+  if(!(+$("fVal").value>0)){$("fErr").textContent="Informe o prêmio líquido.";return}
+  const pct=+String($("fPct").value).replace(",",".");if(!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
+  const cli=$("fCli").value.trim();if(!cli){$("fErr").textContent="Informe o nome do cliente.";return}
   const dt=$("fData").value;if(!dt){$("fErr").textContent="Informe a data da venda.";return}
   if(!db){$("fErr").textContent="Sem conexão com o servidor. Recarregue a página.";return}
   saving=true;$("mSave").disabled=true;
   try{
-    await db.collection("vendas").add({vendedora:selV,produto:selP,seguradora:seg,valor:Math.max(0,+$("fVal").value||0),data:dt,obs:$("fObs").value.trim(),ts:Date.now()});
+    await db.collection("vendas").add({vendedora:selV,produto:selP,seguradora:seg,valor:Math.max(0,+$("fVal").value||0),data:dt,cliente:cli,percentual:pct,ts:Date.now()});
     closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${p.pts} pontos para ${vend(selV).nome}`);
   }catch(err){$("fErr").textContent=/not_granted|permission|denied/.test(err.code||"")?"Este acesso é só de leitura.":"Não foi possível salvar: "+(err.message||err.code)}
   finally{saving=false;$("mSave").disabled=false}

@@ -22,6 +22,10 @@ if (!MASTER_PASSWORD || Object.values(PINS).some((p) => !p)) {
   console.warn("Aviso: defina MASTER_PASSWORD, PIN_DYOVANNA, PIN_ANACLARA, PIN_ALANA e PIN_FABRICIO nas variáveis de ambiente.");
 }
 
+// Percentual, comissão e nome do cliente são sigilosos: só o master recebe.
+const SIGILO = ["cliente", "percentual", "comissao"];
+const publica = (v) => { const o = { ...v }; for (const k of SIGILO) delete o[k]; return o; };
+
 const VENDEDORAS = ["dyovanna", "anaclara", "alana", "fabricio"];
 const PRODUTOS = ["auto", "resid", "vida", "empre", "outros", "financ", "consorcio"];
 const SO_PORTO = ["financ", "consorcio"];
@@ -104,8 +108,11 @@ app.get("/api/eu", (req, res) => res.json({ role: req.role || null, vendedora: r
 
 /* ---------- dados ---------- */
 const READ = need("master", "equipe", "monitor");
-app.get("/api/estado", READ, async (_req, res, next) => {
-  try { res.json(await store.estado()); } catch (e) { next(e); }
+app.get("/api/estado", READ, async (req, res, next) => {
+  try {
+    const e = await store.estado();
+    res.json(req.role === "master" ? e : { ...e, vendas: (e.vendas || []).map(publica) });
+  } catch (e) { next(e); }
 });
 
 app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
@@ -120,13 +127,19 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
     if (!PRODUTOS.includes(produto)) return res.status(400).json({ erro: "Produto inválido." });
     if (!SEGURADORAS.includes(seguradora)) return res.status(400).json({ erro: "Seguradora inválida." });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ erro: "Data inválida." });
+    const cliente = String(b.cliente || "").trim().slice(0, 80);
+    if (!cliente) return res.status(400).json({ erro: "Informe o nome do cliente." });
+    const percentual = Number(String(b.percentual ?? "").replace(",", "."));
+    if (!(percentual > 0 && percentual <= 100)) return res.status(400).json({ erro: "Informe o percentual de comissão (entre 0 e 100)." });
+    const valor = Math.max(0, Math.min(1e9, +b.valor || 0));
+    if (!(valor > 0)) return res.status(400).json({ erro: "Informe o prêmio líquido." });
     const venda = await store.addVenda({
-      vendedora, produto, seguradora, data,
-      valor: Math.max(0, Math.min(1e9, +b.valor || 0)),
-      obs: String(b.obs || "").slice(0, 80), ts: Date.now(),
+      vendedora, produto, seguradora, data, valor,
+      obs: "", ts: Date.now(),
+      cliente, percentual, comissao: Math.round(valor * percentual) / 100,
     });
-    broadcast({ tipo: "venda", venda });
-    res.json(venda);
+    broadcast({ tipo: "venda", venda: publica(venda) });
+    res.json(req.role === "master" ? venda : publica(venda));
   } catch (e) { next(e); }
 });
 
