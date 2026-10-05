@@ -228,10 +228,10 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
   <div class="kpis" id="kpis"></div>
   <div class="grid2">
     <section class="card"><div class="card-h"><h2>Ranking do mês</h2><span class="cap" id="rankCap"></span></div><div class="rank" id="rank"></div></section>
-    <section class="card"><div class="card-h"><h2>Seguradoras × ano anterior</h2><span class="cap">meta = ano anterior + 10%</span></div><div class="segs" id="segs"></div>
+    <section class="card"><div class="card-h"><h2>Seguradoras × ano anterior</h2><span class="cap" id="segCap">meta = ano anterior + 18%</span></div><div class="segs" id="segs"></div>
       <div class="legend"><span><i></i>vendido no mês</span><span><i class="mk"></i>mesmo mês do ano anterior</span></div></section>
   </div>
-  <section class="card"><div class="card-h"><h2>Produtos × ano anterior</h2><span class="cap">prêmio vendido no mês</span></div><div class="prods" id="prods"></div></section>
+  <section class="card"><div class="card-h"><h2>Produtos × ano anterior</h2><span class="cap" id="prodCap">meta = ano anterior + 18%</span></div><div class="prods" id="prods"></div></section>
   <section class="card"><div class="card-h"><h2>Vendas do mês</h2><span class="cap" id="salesCap"></span></div><div class="tbl" id="sales"></div></section>
 </main>
 
@@ -313,7 +313,7 @@ const DEFAULT_RULES={
   minimo:800, ptsBaixo:5,
   metas:{renovacoes:52,novos:18},
   niveis:[{nome:"Bronze",pts:100},{nome:"Prata",pts:150},{nome:"Ouro",pts:200,meta:true},{nome:"Diamante",pts:250}],
-  metaEquipe:800, crescimento:10,
+  metaEquipe:800, crescimento:18,
   premios:{Bronze:"",Prata:"",Ouro:"",Diamante:"",equipe:""}
 };
 let RULES=DEFAULT_RULES, SALES=[], HIST={}, gotSales=false, gotHist=false, db=null, user=null, CAN_EDIT=false, VIEW="vendedoras";
@@ -352,7 +352,7 @@ function calc(){
   const segsAtivos=segs.filter(s=>s.cur>0||s.prev>0);
   const prods=RULES.produtos.map(p=>{const mine=list.filter(s=>s.produto===p.id);
     const pv=Object.values(prev).reduce((a,o)=>a+(+(o||{})[p.id]||0),0);
-    return {...p,cur:mine.reduce((a,s)=>a+(+s.valor||0),0),n:mine.length,prev:pv}});
+    return {...p,cur:mine.reduce((a,s)=>a+(+s.valor||0),0),n:mine.length,prev:pv,meta:pv*gr}});
   const tot=list.reduce((a,s)=>a+(+s.valor||0),0), prevTot=segs.reduce((a,s)=>a+s.prev,0);
   const ren=list.filter(s=>s.tipo==="renovacao").length,nov=list.filter(s=>s.tipo!=="renovacao").length;
   return {list,ren,nov,people,segs:segsAtivos,prods,tot,prevTot,teamPts:people.reduce((a,p)=>a+p.pts,0),hasPrev:prevTot>0};
@@ -407,7 +407,8 @@ function render(){
     $("rank").innerHTML=rankHTML(C);
     $("rankCap").textContent=`meta ${goalPts()} pts`;
     $("segs").innerHTML=segsHTML(C);
-    $("prods").innerHTML=C.prods.map(p=>{const d=delta(p.cur,p.prev);return `<div class="pd"><div class="l">${esc(p.nome)}${p.porto?'<span class="tag-porto">Porto</span>':""}</div><div class="v n">${Rk(p.cur)}</div><div class="s">${p.n} venda${p.n===1?"":"s"} · ${p.prev?`<span class="${d>=0?"up":"down"}">${d>0?"+":""}${d}%</span> vs ${Rk(p.prev)}`:"sem histórico"}</div></div>`}).join("");
+    const cr=+RULES.crescimento||0;$("segCap").textContent=$("prodCap").textContent=`meta = ano anterior + ${cr}%`;
+    $("prods").innerHTML=C.prods.map(p=>{const pc=p.meta>0?Math.round(p.cur/p.meta*100):null;return `<div class="pd"><div class="l">${esc(p.nome)}${p.porto?'<span class="tag-porto">Porto</span>':""}</div><div class="v n">${Rk(p.cur)}</div><div class="s">${p.n} venda${p.n===1?"":"s"} · ${p.meta?`meta ${Rk(p.meta)} · <span class="${pc>=100?"up":""}">${pc}%</span>`:"sem histórico"}</div></div>`}).join("");
     $("salesCap").textContent=C.list.length?`${C.list.length} lançamento${C.list.length===1?"":"s"}`:"";
     $("sales").innerHTML=salesTable(C.list,false);
   }
