@@ -399,7 +399,7 @@ function premioHTML(C){
 function credHTML(C){
   const T=C.credTot;
   return `<div class="pz-top"><span>Consórcio e financiamento</span><b class="n">${T.n} venda${T.n===1?"":"s"}</b></div>
-  <div class="pz-sub">${T.n?`<b>${R(T.valor)}</b> em crédito vendido · cada venda vale 0,3% do crédito`:"Produto de alta rentabilidade (só Porto). Cada venda vale 0,3% do crédito. Ainda sem vendas no mês."}</div>
+  <div class="pz-sub">${T.n?`<b>${R(T.valor)}</b> em crédito vendido · cada venda vale 0,3% do crédito`:"<b>Já falou sobre CONSÓRCIO hoje com seu cliente?</b>"}</div>
   ${T.pessoas.length?`<div class="pz-pos">${T.pessoas.map(p=>`<div><small>${esc(p.nome)}</small><b class="n">${R(p.credito)}</b><span>${p.nCred} venda${p.nCred===1?"":"s"}</span></div>`).join("")}</div>`:""}`;
 }
 function rankHTML(C){
