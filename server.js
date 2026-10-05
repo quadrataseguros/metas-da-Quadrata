@@ -29,7 +29,7 @@ const publica = (v) => { const o = { ...v }; for (const k of SIGILO) delete o[k]
 const VENDEDORAS = ["dyovanna", "anaclara", "alana", "fabricio"];
 const PRODUTOS = ["auto", "resid", "vida", "empre", "outros", "financ", "consorcio"];
 const SO_PORTO = ["financ", "consorcio"];
-const SEGURADORAS = ["PORTO", "AZUL", "ITAÚ", "ALLIANZ", "TOKIO MARINE", "BRADESCO", "YELLUM", "HDI", "SUHAI", "ZURICH", "OUTRA"];
+const SEGURADORAS = ["PORTO", "AZUL", "ITAÚ", "ALLIANZ", "TOKIO MARINE", "BRADESCO", "YELLUM", "HDI", "SUHAI", "ZURICH", "MITSUI", "ALIRO", "OUTRA"];
 
 /* ---------- sessão em cookie assinado ---------- */
 const sign = (v) => crypto.createHmac("sha256", SESSION_SECRET).update(v).digest("base64url");

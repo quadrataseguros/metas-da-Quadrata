@@ -299,8 +299,11 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 
 <script>
 const VEND=[{id:"dyovanna",nome:"Dyovanna",cor:"var(--p1)"},{id:"anaclara",nome:"Ana Clara",cor:"var(--p2)"},{id:"alana",nome:"Alana",cor:"var(--p3)"},{id:"fabricio",nome:"Fabricio",cor:"var(--p4)"}];
-const SEGS=["PORTO","AZUL","ITAÚ","ALLIANZ","TOKIO MARINE","BRADESCO","YELLUM","HDI","SUHAI","ZURICH","OUTRA"];
-const segNome=s=>({"PORTO":"Porto","AZUL":"Azul","ITAÚ":"Itaú","ALLIANZ":"Allianz","TOKIO MARINE":"Tokio Marine","BRADESCO":"Bradesco","YELLUM":"Yellum","HDI":"HDI","SUHAI":"Suhai","ZURICH":"Zurich","OUTRA":"Outra"}[s]||s);
+// Seguradoras que dividem a mesma meta (somam realizado e ano anterior).
+const GRUPOS=[["PORTO","AZUL","ITAÚ","MITSUI"],["YELLUM","HDI","ALIRO"]];
+const grupoDe=sg=>GRUPOS.find(g=>g.includes(sg));
+const SEGS=["PORTO","AZUL","ITAÚ","ALLIANZ","TOKIO MARINE","BRADESCO","YELLUM","HDI","SUHAI","ZURICH","MITSUI","ALIRO","OUTRA"];
+const segNome=s=>({"PORTO":"Porto","AZUL":"Azul","ITAÚ":"Itaú","ALLIANZ":"Allianz","TOKIO MARINE":"Tokio Marine","BRADESCO":"Bradesco","YELLUM":"Yellum","HDI":"HDI","SUHAI":"Suhai","ZURICH":"Zurich","MITSUI":"Mitsui","ALIRO":"Aliro","OUTRA":"Outra"}[s]||s);
 const DEFAULT_RULES={
   produtos:[
     {id:"auto",nome:"Automóvel",pts:10},{id:"resid",nome:"Residencial",pts:10},{id:"vida",nome:"Vida",pts:15},
@@ -341,14 +344,18 @@ function calc(){
   const gr=1+(+RULES.crescimento||0)/100;
   const people=VEND.map(v=>{const mine=list.filter(s=>s.vendedora===v.id);
     return {...v,pts:mine.reduce((a,s)=>a+ptsVenda(s),0),n:mine.length,premio:mine.reduce((a,s)=>a+(+s.valor||0),0)}}).sort((a,b)=>b.pts-a.pts||b.premio-a.premio);
-  const segs=SEGS.map(sg=>{const cur=list.filter(s=>(s.seguradora||"OUTRA")===sg).reduce((a,s)=>a+(+s.valor||0),0);
-    const pv=Object.values(prev[sg]||{}).reduce((a,x)=>a+(+x||0),0);return {sg,cur,prev:pv,meta:pv*gr}}).filter(s=>s.cur>0||s.prev>0);
+  const segs=[];
+  SEGS.forEach(sg=>{const g=grupoDe(sg)||[sg],key=g[0];if(segs.some(x=>x.sg===key))return;
+    const cur=list.filter(x=>g.includes(x.seguradora||"OUTRA")).reduce((a,x)=>a+(+x.valor||0),0);
+    const pv=g.reduce((a,m)=>a+Object.values(prev[m]||{}).reduce((b,x)=>b+(+x||0),0),0);
+    segs.push({sg:key,nome:g.map(segNome).join(" + "),cur,prev:pv,meta:pv*gr})});
+  const segsAtivos=segs.filter(s=>s.cur>0||s.prev>0);
   const prods=RULES.produtos.map(p=>{const mine=list.filter(s=>s.produto===p.id);
     const pv=Object.values(prev).reduce((a,o)=>a+(+(o||{})[p.id]||0),0);
     return {...p,cur:mine.reduce((a,s)=>a+(+s.valor||0),0),n:mine.length,prev:pv}});
   const tot=list.reduce((a,s)=>a+(+s.valor||0),0), prevTot=segs.reduce((a,s)=>a+s.prev,0);
   const ren=list.filter(s=>s.tipo==="renovacao").length,nov=list.filter(s=>s.tipo!=="renovacao").length;
-  return {list,ren,nov,people,segs,prods,tot,prevTot,teamPts:people.reduce((a,p)=>a+p.pts,0),hasPrev:prevTot>0};
+  return {list,ren,nov,people,segs:segsAtivos,prods,tot,prevTot,teamPts:people.reduce((a,p)=>a+p.pts,0),hasPrev:prevTot>0};
 }
 function lvl(p){let cur=null,next=RULES.niveis[0];for(const l of RULES.niveis){if(p>=l.pts){cur=l;next=null}else{next=l;break}}return{cur,next}}
 const goalPts=()=>(RULES.niveis.find(l=>l.meta)||RULES.niveis[RULES.niveis.length-1]).pts;
@@ -377,7 +384,7 @@ function segsHTML(C){
   if(!C.segs.length)return `<div class="empty">Nenhuma venda nem histórico neste mês.</div>`;
   const max=Math.max(...C.segs.map(s=>Math.max(s.cur,s.meta)))||1;
   return [...C.segs].sort((a,b)=>Math.max(b.cur,b.prev)-Math.max(a.cur,a.prev)).map(s=>{const pc=s.meta>0?Math.round(s.cur/s.meta*100):null,ok=pc!=null&&pc>=100;
-    return `<div class="sg ${s.prev?"":"none"}"><span class="nm">${segNome(s.sg)}</span>
+    return `<div class="sg ${s.prev?"":"none"}"><span class="nm">${esc(s.nome)}</span>
     <div class="tr"><i class="${ok?"ok":""}" style="width:${s.cur/max*100}%"></i>${s.prev?`<span class="mk" style="left:${s.prev/max*100}%"></span>`:""}</div>
     <span class="val n">${Rk(s.cur)}<small>${s.prev?"meta "+Rk(s.meta):"sem histórico"}</small></span>
     <span class="pc n ${ok?"up":""}">${pc==null?"—":pc+"%"}</span></div>`}).join("");
