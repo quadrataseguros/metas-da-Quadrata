@@ -321,20 +321,9 @@ const Rk=v=>{v=+v||0;return v>=1e6?"R$ "+(v/1e6).toLocaleString("pt-BR",{maximum
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const prod=id=>RULES.produtos.find(p=>p.id===id);
 const vend=id=>VEND.find(v=>v.id===id)||{nome:"?",cor:"var(--fg3)"};
-const isDemo=()=>gotSales&&gotHist&&SALES.length===0&&Object.keys(HIST).length===0;
+const isDemo=()=>false;
 
-/* ---- exemplo (só aparece enquanto não há nenhum dado real) ---- */
-function demo(){
-  const k=ym(VY,VM),today=(VY===now.getFullYear()&&VM===now.getMonth())?now.getDate():28,d=n=>k+"-"+pad(((n-1)%today)+1);
-  const L=[["dyovanna","auto","PORTO",2100,2],["dyovanna","vida","AZUL",900,3],["dyovanna","auto","TOKIO MARINE",1800,4],["dyovanna","resid","PORTO",650,8],["dyovanna","empre","HDI",6200,9],["dyovanna","financ","PORTO",0,15],["dyovanna","vida","ALLIANZ",1100,18],
-    ["anaclara","auto","AZUL",2600,1],["anaclara","auto","PORTO",3100,6],["anaclara","resid","ITAÚ",720,7],["anaclara","vida","PORTO",1300,10],["anaclara","consorcio","PORTO",0,12],["anaclara","auto","HDI",1950,16],
-    ["alana","resid","PORTO",580,3],["alana","auto","ALLIANZ",2050,5],["alana","vida","AZUL",980,6],["alana","empre","TOKIO MARINE",4800,13],["alana","financ","PORTO",0,19]];
-  const sales=L.map((r,i)=>({id:"ex"+i,vendedora:r[0],produto:r[1],seguradora:r[2],valor:r[3],data:d(r[4]),obs:"exemplo",ts:i}));
-  const P={PORTO:{auto:4000,resid:900,vida:1200},AZUL:{auto:2500,vida:700},"ITAÚ":{resid:600},ALLIANZ:{auto:1500,vida:800},"TOKIO MARINE":{auto:2200,empre:3000},HDI:{auto:1700,empre:5000}};
-  return {sales,hist:{[ym(VY-1,VM)]:{valores:P}}};
-}
 function data(){
-  if(isDemo()){const D=demo();return {sales:D.sales,hist:D.hist}}
   return {sales:SALES,hist:HIST};
 }
 
@@ -394,8 +383,7 @@ function render(){
   document.querySelectorAll("nav a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===VIEW?"page":"false"));
   if($("btnNova"))$("btnNova").hidden=VIEW==="master";
   const nt=$("note");
-  if(isDemo()){nt.hidden=false;nt.textContent="Exemplo: ainda não há vendas nem histórico lançados, então os números abaixo são fictícios. Eles somem com o primeiro lançamento real."}
-  else if(!C.hasPrev&&VIEW==="vendedoras"){nt.hidden=false;nt.textContent="O histórico do ano anterior deste mês ainda não foi lançado pelo master, então as metas por seguradora aparecem sem base."}
+  if(!C.hasPrev&&VIEW==="vendedoras"){nt.hidden=false;nt.textContent="O histórico do ano anterior deste mês ainda não foi lançado pelo master, então as metas por seguradora aparecem sem base."}
   else nt.hidden=true;
 
   if(VIEW==="vendedoras"){
