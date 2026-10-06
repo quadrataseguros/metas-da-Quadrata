@@ -50,6 +50,13 @@ if (url) {
     },
     delVenda: (id) => q(`DELETE FROM vendas WHERE id = $1`, [id]),
     zerarVendas: () => q(`DELETE FROM vendas`),
+    async getVenda(id) {
+      const r = await q(`SELECT id, vendedora, produto, seguradora, valor::float AS valor, to_char(data,'YYYY-MM-DD') AS data, obs, ts,
+                tipo, cliente, percentual::float AS percentual, comissao::float AS comissao, credito::float AS credito FROM vendas WHERE id = $1`, [id]);
+      return r.rows[0] ? { ...r.rows[0], ts: Number(r.rows[0].ts) } : null;
+    },
+    updVenda: (v) => q(`UPDATE vendas SET vendedora=$2, produto=$3, seguradora=$4, valor=$5, data=$6, tipo=$7, cliente=$8, percentual=$9, comissao=$10, credito=$11 WHERE id=$1`,
+      [v.id, v.vendedora, v.produto, v.seguradora, v.valor, v.data, v.tipo, v.cliente, v.percentual, v.comissao, v.credito]),
     setHistorico: (chave, valores) => q(
       `INSERT INTO historico (chave, valores) VALUES ($1, $2) ON CONFLICT (chave) DO UPDATE SET valores = $2, atualizado = now()`,
       [chave, JSON.stringify(valores)]),
@@ -66,6 +73,8 @@ if (url) {
     async addVenda(v) { const venda = { id: crypto.randomUUID(), ...v }; db.vendas.unshift(venda); save(); return venda; },
     async delVenda(id) { db.vendas = db.vendas.filter((v) => v.id !== id); save(); },
     async zerarVendas() { db.vendas = []; save(); },
+    async getVenda(id) { return db.vendas.find((v) => v.id === id) || null; },
+    async updVenda(v) { db.vendas = db.vendas.map((x) => (x.id === v.id ? v : x)); save(); },
     async setHistorico(chave, valores) { db.historico[chave] = { valores }; save(); },
     async setRegras(r) { db.regras = r; save(); },
   };

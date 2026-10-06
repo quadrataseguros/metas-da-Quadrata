@@ -321,6 +321,9 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .flash b{display:block;font-family:var(--f-num);font-size:clamp(30px,4.5vw,84px);font-weight:700;line-height:1.05}
 .flash span{display:block;font-size:clamp(16px,1.8vw,34px);margin-top:10px;color:#dbe7fb}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.acts{display:inline-flex;gap:2px;white-space:nowrap}
+.ic{background:none;border:1px solid transparent;color:var(--fg3);padding:5px;line-height:0;cursor:pointer;border-radius:var(--r)}
+.ic:hover{color:var(--brand);border-color:var(--line)}.ic.del:hover{color:var(--bad)}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -596,14 +599,18 @@ function barsHTML(title,cap,items){
     return `<div class="br ${i.meta?"":"none"}"><div class="top"><b>${esc(i.nome)}</b><span>${Rk(i.cur)}${i.meta?` / ${Rk(i.meta)}<em class="${ok?"ok":""}">${Math.round(pc*100)}%</em>`:" · sem histórico"}</span></div><div class="tr"><i class="${ok?"ok":""}" style="width:${w}%"></i></div></div>`}).join("");
   return `<section class="card c6"><div class="card-h"><h2>${title}</h2><span class="badge">${cap}</span></div><div class="bars">${rows||'<div class="empty">Sem vendas nem histórico neste mês.</div>'}</div></section>`;
 }
+const ICO_EDIT='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+const ICO_DEL='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+const podeMexer=s=>ROLE==="master"||(ROLE==="equipe"&&s.vendedora===MEU);
+const acoes=s=>podeMexer(s)?`<span class="acts"><button type="button" class="ic" data-edit="${esc(s.id)}" aria-label="Corrigir venda" title="Corrigir">${ICO_EDIT}</button><button type="button" class="ic del" data-rm="${esc(s.id)}" aria-label="Excluir venda" title="Excluir">${ICO_DEL}</button></span>`:"";
 function salesHTML(C,tv){
   const L=[...C.list].sort(byNew),lim=tv?5:(SHOWALL?L.length:8);
   const hora=s=>{const d=s.ts?new Date(+s.ts):null;return `${s.data.slice(8,10)}/${s.data.slice(5,7)}${d&&s.ts>1e12?" "+pad(d.getHours())+":"+pad(d.getMinutes()):""}`};
   const body=L.slice(0,lim).map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto};
     const tg=isCred(s)?'<span class="tag cr">crédito</span>':s.tipo==="renovacao"?'<span class="tag rn">Renovação</span>':'<span class="tag nv">Novo</span>';
-    return `<tr class="${s.id===FRESH?"new":""}"><td class="n">${hora(s)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome.replace(" (sem saúde e odonto)",""))}${tg}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${isCred(s)?R(s.credito):R(s.valor)}</td><td class="r n strong">+${ptsVenda(s)}</td></tr>`}).join("");
+    return `<tr class="${s.id===FRESH?"new":""}"><td class="n">${hora(s)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome.replace(" (sem saúde e odonto)",""))}${tg}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${isCred(s)?R(s.credito):R(s.valor)}</td><td class="r n strong">+${ptsVenda(s)}</td>${tv?"":`<td class="r">${acoes(s)}</td>`}</tr>`}).join("");
   return `<section class="card sales"><div class="card-h"><h2>Últimas vendas</h2><span class="badge">${L.length} no mês</span></div>
-  ${L.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Valor</th><th class="r">Pontos</th></tr></thead><tbody>${body}</tbody></table></div>
+  ${L.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Valor</th><th class="r">Pontos</th>${tv?"":"<th></th>"}</tr></thead><tbody>${body}</tbody></table></div>
   ${!tv&&L.length>8?`<button class="more" data-more>${SHOWALL?"Mostrar menos":`Ver todas (${L.length})`}</button>`:""}`:`<div class="empty">Nenhuma venda neste mês ainda. Use <b>Registrar venda</b> para lançar a primeira.</div>`}</section>`;
 }
 function dashHTML(C,tv){
@@ -654,7 +661,7 @@ function salesTable(list,del,master){
   if(!list.length)return `<div class="empty">Nenhuma venda neste mês. Use <b>Registrar venda</b> para lançar a primeira.</div>`;
   return `<table><thead><tr><th>Data</th><th>Vendedora</th><th>Produto</th><th>Tipo</th><th>Seguradora</th><th class="r">Prêmio</th><th class="r">Pontos</th>${master?"<th>Cliente</th><th class=\"r\">Comissão %</th><th class=\"r\">Comissão R$</th>":""}${del?"<th></th>":""}</tr></thead><tbody>${
     [...list].sort(byNew).map(s=>{const v=vend(s.vendedora),p=prod(s.produto)||{nome:s.produto,pts:0};
-      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${s.credito?`<small>crédito</small> ${R(s.credito)}`:+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r"><span data-row="${esc(s.id)}"><button class="x" data-del="${esc(s.id)}" aria-label="Apagar venda">✕</button></span></td>`:""}</tr>`}).join("")}</tbody></table>`;
+      return `<tr><td class="n">${s.data.slice(8,10)}/${s.data.slice(5,7)}</td><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td><td>${esc(p.nome)}</td><td>${s.tipo==="renovacao"?"Renovação":"Novo"}</td><td>${segNome(s.seguradora||"OUTRA")}</td><td class="r n">${s.credito?`<small>crédito</small> ${R(s.credito)}`:+s.valor?R(s.valor):"—"}</td><td class="r n strong">+${ptsVenda(s)}</td>${master?`<td>${esc(s.cliente||"—")}</td><td class="r n">${s.percentual!=null?String(s.percentual).replace(".",",")+"%":"—"}</td><td class="r n strong">${s.comissao!=null?R2(s.comissao):"—"}</td>`:""}${del?`<td class="r">${acoes(s)}</td>`:""}</tr>`}).join("")}</tbody></table>`;
 }
 
 /* ---- master ---- */
@@ -727,23 +734,33 @@ $("zerar").onclick=async()=>{
   if(t===null)return;if(t.trim().toUpperCase()!=="ZERAR"){toast("Nada foi apagado.");return}
   try{await api("DELETE","/api/vendas",{confirma:"ZERAR"});toast("Todas as vendas foram apagadas");await load()}catch(err){toast("Não foi possível apagar: "+(err.message||err.code))}
 };
-$("mSales").addEventListener("click",async e=>{
-  const d=e.target.closest("[data-del]");
-  if(d){d.parentElement.innerHTML=`<span class="cf"><button type="button" data-no>Manter</button><button type="button" class="yes" data-yes="${d.dataset.del}">Apagar</button></span>`;return}
-  if(e.target.closest("[data-no]")){render();return}
-  const y=e.target.closest("[data-yes]");
-  if(y&&db){try{await db.doc("vendas/"+y.dataset.yes).delete();toast("Venda apagada")}catch(err){toast("Não foi possível apagar: "+(err.message||err.code))}}
+
+
+/* ---- corrigir / excluir venda (a vendedora só as próprias; o servidor confere) ---- */
+document.addEventListener("click",async e=>{
+  const ed=e.target.closest("[data-edit]");if(ed){const v=SALES.find(x=>x.id===ed.dataset.edit);if(v)openModal(v);return}
+  const rm=e.target.closest("[data-rm]");if(!rm)return;
+  const v=SALES.find(x=>x.id===rm.dataset.rm);if(!v)return;
+  const p=prod(v.produto)||{nome:v.produto};
+  if(!confirm(`Excluir esta venda?\n\n${vend(v.vendedora).nome} · ${p.nome} · ${v.data.split("-").reverse().join("/")}\n${v.credito?"Crédito "+R(v.credito):"Prêmio "+R(v.valor)}\n\nOs pontos dela saem do placar.`))return;
+  try{await api("DELETE","/api/vendas/"+encodeURIComponent(v.id));toast("Venda excluída");await load()}catch(err){toast("Não foi possível excluir: "+(err.message||err.code))}
 });
 
 /* ---- registrar venda ---- */
-let selV=null,selP=null,selT=null,saving=false;
-function openModal(){
-  selV=MEU||null;selP=null;selT=null;$("fVal").value="";$("fPct").value="";$("fCli").value="";$("fErr").textContent="";
-  const t=new Date();$("fData").value=t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());
-  $("pickV").closest("div").hidden=!!MEU;
+let selV=null,selP=null,selT=null,saving=false,EDIT=null;
+function openModal(v){
+  EDIT=v&&v.id?v:null;
+  selV=EDIT?EDIT.vendedora:(MEU||null);selP=EDIT?EDIT.produto:null;selT=EDIT?EDIT.tipo:null;
+  $("fVal").value=EDIT?(EDIT.credito||EDIT.valor||""):"";$("fPct").value=EDIT&&EDIT.percentual!=null?EDIT.percentual:"";$("fCli").value=EDIT&&EDIT.cliente?EDIT.cliente:"";$("fErr").textContent="";
+  // a vendedora não recebe cliente e % do servidor: em branco, mantém o que ela já lançou
+  const oculto=EDIT&&ROLE!=="master";$("fCli").placeholder=oculto?"em branco = manter":"";$("fPct").placeholder=oculto?"em branco = manter":"";
+  $("mT").textContent=EDIT?"Corrigir venda":"Registrar venda";$("mSave").textContent=EDIT?"Salvar correção":"Salvar venda";
+  const t=new Date();$("fData").value=EDIT?EDIT.data:t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());
+  $("pickV").parentElement.hidden=!!MEU;
   $("pickV").innerHTML=VEND.map(v=>`<button type="button" data-v="${v.id}" aria-pressed="false"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</button>`).join("");
   $("pickP").innerHTML=RULES.produtos.map(p=>`<button type="button" data-p="${p.id}" aria-pressed="false">${esc(p.nome)}</button>`).join("");
   $("fSeg").innerHTML=`<option value="">Selecione…</option>`+SEGS.map(s=>`<option value="${s}">${segNome(s)}</option>`).join("");
+  if(EDIT)$("fSeg").value=EDIT.seguradora||"";
   upd();$("ov").hidden=false;
 }
 function upd(){
@@ -766,7 +783,7 @@ $("pickP").addEventListener("click",e=>{const b=e.target.closest("[data-p]");if(
 const closeM=()=>$("ov").hidden=true;
 $("mX").onclick=closeM;$("mCancel").onclick=closeM;$("ov").addEventListener("click",e=>{if(e.target.id==="ov")closeM()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("ov").hidden)closeM()});
-$("btnNova").onclick=openModal;
+$("btnNova").onclick=()=>openModal();
 $("btnSair").onclick=async()=>{try{await fetch("/api/logout",{method:"POST"})}catch(e){}location.href="/login"};
 $("form").addEventListener("submit",e=>{e.preventDefault();save()});
 $("mSave").onclick=save;
@@ -777,14 +794,16 @@ async function save(){
   const seg=p.porto?"PORTO":$("fSeg").value;if(!seg){$("fErr").textContent="Escolha a seguradora.";return}
   const cr=!!p.porto;
   if(!(+$("fVal").value>0)){$("fErr").textContent=cr?"Informe o valor do crédito.":"Informe o prêmio líquido.";return}
-  const pct=cr?0.3:+String($("fPct").value).replace(",",".");if(!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
-  const cli=$("fCli").value.trim();if(!cli){$("fErr").textContent="Informe o nome do cliente.";return}
+  const manter=EDIT&&ROLE!=="master";
+  const pctTxt=String($("fPct").value).trim(),pct=cr?0.3:(manter&&!pctTxt&&!prod(EDIT.produto)?.porto?"":+pctTxt.replace(",","."));if(pct!==""&&!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
+  const cli=$("fCli").value.trim();if(!cli&&!manter){$("fErr").textContent="Informe o nome do cliente.";return}
   const dt=$("fData").value;if(!dt){$("fErr").textContent="Informe a data da venda.";return}
   if(!db){$("fErr").textContent="Sem conexão com o servidor. Recarregue a página.";return}
   saving=true;$("mSave").disabled=true;
   try{
-    await db.collection("vendas").add({vendedora:selV,produto:selP,seguradora:seg,...(cr?{credito:+$("fVal").value}:{valor:Math.max(0,+$("fVal").value||0),percentual:pct}),data:dt,tipo:selT,cliente:cli,ts:Date.now()});
-    closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${pontos(selP,$("fVal").value)} pontos para ${vend(selV).nome}`);
+    const rec={vendedora:selV,produto:selP,seguradora:seg,...(cr?{credito:+$("fVal").value}:{valor:Math.max(0,+$("fVal").value||0),percentual:pct}),data:dt,tipo:selT,cliente:cli,ts:Date.now()};
+    if(EDIT){await api("PUT","/api/vendas/"+encodeURIComponent(EDIT.id),rec);closeM();await load();toast("Venda corrigida")}
+    else{await db.collection("vendas").add(rec);closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${pontos(selP,$("fVal").value)} pontos para ${vend(selV).nome}`)}
   }catch(err){$("fErr").textContent=/not_granted|permission|denied/.test(err.code||"")?"Este acesso é só de leitura.":"Não foi possível salvar: "+(err.message||err.code)}
   finally{saving=false;$("mSave").disabled=false}
 }

@@ -137,55 +137,80 @@ app.get("/api/estado", READ, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Valida e monta uma venda. Na edição, a vendedora pode deixar cliente e % em branco para manter
+// os dados que ela já tinha lançado (ela não recebe esses campos do servidor).
+function montaVenda(b, req, antiga) {
+  const produto = String(b.produto || "");
+  const seguradora = SO_PORTO.includes(produto) ? "PORTO" : String(b.seguradora || "");
+  const data = String(b.data || "");
+  // Vendedora só lança no próprio nome; o master pode lançar por qualquer uma.
+  const vendedora = req.role === "equipe" ? req.vendedora : b.vendedora;
+  if (!VENDEDORAS.includes(vendedora)) return { erro: "Vendedora inválida." };
+  if (!PRODUTOS.includes(produto)) return { erro: "Produto inválido." };
+  if (!SEGURADORAS.includes(seguradora)) return { erro: "Seguradora inválida." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return { erro: "Data inválida." };
+  const tipo = String(b.tipo || "");
+  if (!["novo", "renovacao"].includes(tipo)) return { erro: "Informe se é novo seguro ou renovação." };
+  let cliente = String(b.cliente || "").trim().slice(0, 80);
+  if (!cliente && antiga) cliente = antiga.cliente || "";
+  if (!cliente) return { erro: "Informe o nome do cliente." };
+  let percentual, valor, comissao, credito = null;
+  if (SO_PORTO.includes(produto)) {
+    credito = Math.max(0, Math.min(1e10, +b.credito || 0));
+    if (!(credito > 0)) return { erro: "Informe o valor do crédito." };
+    percentual = PCT_CREDITO;
+    valor = 0;
+    comissao = Math.round(credito * PCT_CREDITO) / 100;
+  } else {
+    const txt = String(b.percentual ?? "").trim();
+    percentual = txt === "" && antiga && !SO_PORTO.includes(antiga.produto) ? +antiga.percentual : Number(txt.replace(",", "."));
+    if (!(percentual > 0 && percentual <= 100)) return { erro: "Informe o percentual de comissão (entre 0 e 100)." };
+    valor = Math.max(0, Math.min(1e9, +b.valor || 0));
+    if (!(valor > 0)) return { erro: "Informe o prêmio líquido." };
+    comissao = Math.round(valor * percentual) / 100;
+  }
+  return { venda: { vendedora, produto, seguradora, data, valor, tipo, obs: "", cliente, percentual, comissao, credito } };
+}
+// A vendedora só mexe nas próprias vendas; o master mexe em todas.
+async function vendaDona(req, res) {
+  const v = await store.getVenda(req.params.id);
+  if (!v) { res.status(404).json({ erro: "Venda não encontrada." }); return null; }
+  if (req.role === "equipe" && v.vendedora !== req.vendedora) { res.status(403).json({ erro: "Você só pode alterar as suas vendas." }); return null; }
+  return v;
+}
+
 app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
   try {
-    const b = req.body || {};
-    const produto = String(b.produto || "");
-    const seguradora = SO_PORTO.includes(produto) ? "PORTO" : String(b.seguradora || "");
-    const data = String(b.data || "");
-    // Vendedora só lança no próprio nome; o master pode lançar por qualquer uma.
-    const vendedora = req.role === "equipe" ? req.vendedora : b.vendedora;
-    if (!VENDEDORAS.includes(vendedora)) return res.status(400).json({ erro: "Vendedora inválida." });
-    if (!PRODUTOS.includes(produto)) return res.status(400).json({ erro: "Produto inválido." });
-    if (!SEGURADORAS.includes(seguradora)) return res.status(400).json({ erro: "Seguradora inválida." });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return res.status(400).json({ erro: "Data inválida." });
-    const tipo = String(b.tipo || "");
-    if (!["novo", "renovacao"].includes(tipo)) return res.status(400).json({ erro: "Informe se é novo seguro ou renovação." });
-    const cliente = String(b.cliente || "").trim().slice(0, 80);
-    if (!cliente) return res.status(400).json({ erro: "Informe o nome do cliente." });
-    let percentual, valor, comissao, credito = null;
-    if (SO_PORTO.includes(produto)) {
-      credito = Math.max(0, Math.min(1e10, +b.credito || 0));
-      if (!(credito > 0)) return res.status(400).json({ erro: "Informe o valor do crédito." });
-      percentual = PCT_CREDITO;
-      valor = 0;
-      comissao = Math.round(credito * PCT_CREDITO) / 100;
-    } else {
-      percentual = Number(String(b.percentual ?? "").replace(",", "."));
-      if (!(percentual > 0 && percentual <= 100)) return res.status(400).json({ erro: "Informe o percentual de comissão (entre 0 e 100)." });
-      valor = Math.max(0, Math.min(1e9, +b.valor || 0));
-      if (!(valor > 0)) return res.status(400).json({ erro: "Informe o prêmio líquido." });
-      comissao = Math.round(valor * percentual) / 100;
-    }
-    const venda = await store.addVenda({
-      vendedora, produto, seguradora, data, valor, tipo,
-      obs: "", ts: Date.now(),
-      cliente, percentual, comissao, credito,
-    });
+    const m = montaVenda(req.body || {}, req);
+    if (m.erro) return res.status(400).json({ erro: m.erro });
+    const venda = await store.addVenda({ ...m.venda, ts: Date.now() });
     broadcast({ tipo: "venda", venda: publica(venda) });
     res.json(req.role === "master" ? venda : publica(venda));
   } catch (e) { next(e); }
 });
 
-// Apaga TODAS as vendas (começar do zero). Só master, com a palavra de confirmação.
+app.put("/api/vendas/:id", need("master", "equipe"), async (req, res, next) => {
+  try {
+    const antiga = await vendaDona(req, res);
+    if (!antiga) return;
+    const m = montaVenda(req.body || {}, req, antiga);
+    if (m.erro) return res.status(400).json({ erro: m.erro });
+    if (req.role === "equipe") m.venda.vendedora = antiga.vendedora;
+    const venda = { ...antiga, ...m.venda, id: antiga.id, ts: antiga.ts };
+    await store.updVenda(venda);
+    broadcast({ tipo: "mudou" });
+    res.json(req.role === "master" ? venda : publica(venda));
+  } catch (e) { next(e); }
+});
+
 app.delete("/api/vendas", need("master"), async (req, res, next) => {
   try {
     if ((req.body || {}).confirma !== "ZERAR") return res.status(400).json({ erro: "Confirmação inválida." });
     await store.zerarVendas(); broadcast({ tipo: "mudou" }); res.json({ ok: true });
   } catch (e) { next(e); }
 });
-app.delete("/api/vendas/:id", need("master"), async (req, res, next) => {
-  try { await store.delVenda(req.params.id); broadcast({ tipo: "mudou" }); res.json({ ok: true }); } catch (e) { next(e); }
+app.delete("/api/vendas/:id", need("master", "equipe"), async (req, res, next) => {
+  try { if (!(await vendaDona(req, res))) return; await store.delVenda(req.params.id); broadcast({ tipo: "mudou" }); res.json({ ok: true }); } catch (e) { next(e); }
 });
 
 app.put("/api/historico/:chave", need("master"), async (req, res, next) => {
