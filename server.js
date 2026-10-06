@@ -177,6 +177,13 @@ app.post("/api/vendas", need("master", "equipe"), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Apaga TODAS as vendas (começar do zero). Só master, com a palavra de confirmação.
+app.delete("/api/vendas", need("master"), async (req, res, next) => {
+  try {
+    if ((req.body || {}).confirma !== "ZERAR") return res.status(400).json({ erro: "Confirmação inválida." });
+    await store.zerarVendas(); broadcast({ tipo: "mudou" }); res.json({ ok: true });
+  } catch (e) { next(e); }
+});
 app.delete("/api/vendas/:id", need("master"), async (req, res, next) => {
   try { await store.delVenda(req.params.id); broadcast({ tipo: "mudou" }); res.json({ ok: true }); } catch (e) { next(e); }
 });

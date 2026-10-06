@@ -47,6 +47,7 @@ nav a[aria-current="page"]{background:var(--brand-soft);color:var(--brand)}
 main{max-width:1240px;margin:0 auto;padding:22px 16px 60px;display:flex;flex-direction:column;gap:20px}
 .note{font-size:13px;color:var(--fg2);background:var(--warn-soft);border-radius:10px;padding:9px 12px}
 .cap{font-size:12px;color:var(--fg3)}
+.linkbtn{background:none;border:0;padding:0;color:var(--bad);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline}
 .hl{border-color:var(--brand);background:linear-gradient(135deg,var(--brand-soft),var(--card) 70%)}
 .pz-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
 .pz-top span{font-size:13px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.04em}
@@ -361,7 +362,7 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
       <div class="rules" id="rules"></div>
       <div class="row-act"><span class="cap" id="rulesMsg"></span><button class="btn" id="rulesSave">Salvar regras</button></div>
     </section>
-    <section class="card"><div class="card-h"><h2>Vendas lançadas no mês</h2><span class="cap">Apague uma venda lançada por engano</span></div><div class="tbl" id="mSales"></div></section>
+    <section class="card"><div class="card-h"><h2>Vendas lançadas no mês</h2><span class="cap">Apague uma venda lançada por engano · <button type="button" class="linkbtn" id="zerar">Apagar todas as vendas</button></span></div><div class="tbl" id="mSales"></div></section>
   </div>
 </main>
 
@@ -689,6 +690,11 @@ $("rulesSave").onclick=async()=>{
   $("rulesSave").disabled=true;
   try{await db.doc("config/regras").set(r);rulesDirty=false;toast("Regras salvas")}
   catch(e){$("rulesMsg").textContent="Não foi possível salvar: "+(e.message||e.code)}finally{$("rulesSave").disabled=false}
+};
+$("zerar").onclick=async()=>{
+  const t=prompt("Isso apaga TODAS as vendas lançadas, de todos os meses, e não dá para desfazer.\nO histórico do ano anterior e as regras continuam.\n\nPara confirmar, digite ZERAR:");
+  if(t===null)return;if(t.trim().toUpperCase()!=="ZERAR"){toast("Nada foi apagado.");return}
+  try{await api("DELETE","/api/vendas",{confirma:"ZERAR"});toast("Todas as vendas foram apagadas");await load()}catch(err){toast("Não foi possível apagar: "+(err.message||err.code))}
 };
 $("mSales").addEventListener("click",async e=>{
   const d=e.target.closest("[data-del]");

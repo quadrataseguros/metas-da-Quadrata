@@ -49,6 +49,7 @@ if (url) {
       return { id, ...v };
     },
     delVenda: (id) => q(`DELETE FROM vendas WHERE id = $1`, [id]),
+    zerarVendas: () => q(`DELETE FROM vendas`),
     setHistorico: (chave, valores) => q(
       `INSERT INTO historico (chave, valores) VALUES ($1, $2) ON CONFLICT (chave) DO UPDATE SET valores = $2, atualizado = now()`,
       [chave, JSON.stringify(valores)]),
@@ -64,6 +65,7 @@ if (url) {
     async estado() { return db; },
     async addVenda(v) { const venda = { id: crypto.randomUUID(), ...v }; db.vendas.unshift(venda); save(); return venda; },
     async delVenda(id) { db.vendas = db.vendas.filter((v) => v.id !== id); save(); },
+    async zerarVendas() { db.vendas = []; save(); },
     async setHistorico(chave, valores) { db.historico[chave] = { valores }; save(); },
     async setRegras(r) { db.regras = r; save(); },
   };
