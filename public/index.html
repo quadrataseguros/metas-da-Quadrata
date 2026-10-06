@@ -3,21 +3,21 @@
 <link rel="icon" href="/logo.png">
 <title>Quadrata - Metas</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: um painel, três telas pelo endereço (#vendedoras, #monitor, #master). Cabeçalho fino, ranking e seguradoras lado a lado, lista de vendas embaixo. */
 :root{
-  color-scheme:dark;
-  --bg:#080d18; --card:#0f1729; --card2:#131d33; --line:#1e2a44; --line2:#2a3858;
-  --fg:#eef3fc; --fg2:#a9b5cc; --fg3:#6e7c98;
-  --brand:#38bdf8; --brand2:#22d3ee; --navy:#0b1426; --brand-soft:rgba(56,189,248,.12);
-  --good:#34d399; --good-soft:rgba(52,211,153,.13); --warn:#fbbf24; --warn-soft:rgba(251,191,36,.12); --bad:#f87171;
-  --gold:#f5c451; --silver:#cbd5e1; --bronze:#e0905a;
-  /* cores das vendedoras: paleta categórica validada para fundo escuro (ordem fixa) */
+  color-scheme:light;
+  --bg:#f5f6f8; --card:#ffffff; --card2:#ffffff; --line:#e4e7ec; --line2:#d9dde4;
+  --fg:#111827; --fg2:#4b5563; --fg3:#8b93a1;
+  --brand:#1d4ed8; --brand2:#1d4ed8; --navy:#111827; --brand-soft:#eef2fb;
+  --good:#047857; --good-soft:#e7f4ef; --warn:#a16207; --warn-soft:#fbf5e6; --bad:#b91c1c;
+  --gold:#a8790f; --silver:#9ca3af; --bronze:#b26b3c;
+  /* cores das vendedoras: paleta categórica validada para fundo claro (ordem fixa) */
   --p1:#3987e5; --p2:#d95926; --p3:#199e70; --p4:#9085e9;
-  --f-num:"Sora","Segoe UI",system-ui,sans-serif;
-  --f-body:"Figtree",-apple-system,"Segoe UI",Roboto,sans-serif;
-  --r:16px;
+  --f-num:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-body:"Inter",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:6px;
 }
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -321,6 +321,37 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .flash b{display:block;font-family:var(--f-num);font-size:clamp(30px,4.5vw,84px);font-weight:700;line-height:1.05}
 .flash span{display:block;font-size:clamp(16px,1.8vw,34px);margin-top:10px;color:#dbe7fb}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
+body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
+header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
+.card,.slot,.badge,.chip,.btn,.ghost,.tabs,.pick button,.pod,.pod .lv,.ask,.tip,.toast,input,select,textarea,button{border-radius:var(--r)!important}
+.card{background:#fff!important;border:1px solid var(--line)!important;box-shadow:none!important;padding:22px}
+.glow,.glow-gold{box-shadow:none!important;border:1px solid var(--line)!important}
+.glow{border-top:2px solid var(--brand)!important}
+.glow-gold{border-top:2px solid var(--gold)!important}
+.card-h h2,h2{font-weight:600!important;letter-spacing:0!important;font-size:15px}
+.big,.money,.pts,.pz-val{font-weight:600!important;letter-spacing:-.01em!important;text-shadow:none!important}
+.badge,.chip,.pod .lv{background:transparent!important;border:1px solid var(--line)!important;color:var(--fg2)!important;font-weight:500!important}
+.slot{background:#fafbfc!important;border:1px solid var(--line)!important}
+.track,.br .tr{height:4px!important;background:#edf0f4!important;border-radius:0!important}
+.track i,.br .tr i{background:var(--brand)!important;border-radius:0!important}
+.br .tr i.ok{background:var(--good)!important}
+.gauge .g-bg{stroke:#edf0f4!important;stroke-width:6!important}
+.gauge .g-fg{filter:none!important;stroke-width:6!important;stroke-linecap:butt!important}
+.av,.pod.first .av,.pod.third .av{box-shadow:none!important;border-width:2px!important}
+.pod.first{background:#fafbfc!important;border:1px solid var(--line)}
+.medal{color:#fff!important}
+.ask{border:1px dashed var(--line2)!important;background:#fafbfc!important}
+.chart-wrap .grid{stroke:#edf0f4!important}
+.chart-wrap .ln{stroke-width:2!important}
+.chart-wrap .dotc{stroke:#fff!important}
+.chart-wrap .pace{stroke:#9ca3af!important;stroke-dasharray:4 4!important;stroke-width:1!important}
+.tip{background:#fff!important;color:var(--fg)!important;border:1px solid var(--line)!important;box-shadow:0 4px 12px rgba(17,24,39,.08)!important}
+.btn{background:var(--brand)!important;box-shadow:none!important;font-weight:600!important}
+.hl{background:var(--brand-soft)!important}
+.toast{background:var(--fg)!important;box-shadow:none!important}
+.live{background:transparent!important}
+table th{font-weight:600!important;letter-spacing:.04em}
 </style>
 
 </head><body>
@@ -554,7 +585,7 @@ function chartHTML(C){
   const last=pts[pts.length-1];
   const data=JSON.stringify({W,H,L,pl,pr,pt,pb,top,meta,pts:pts.map(p=>[p.d,p.acc,p.dia])}).replace(/"/g,"&quot;");
   return `<section class="card c7"><div class="card-h"><h2>Produção acumulada no mês</h2><span class="badge">${last?`até dia ${last.d}: ${Rk(last.acc)}`:"sem vendas ainda"}</span></div>
-  <div class="chart-wrap" data-c="${data}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Produção acumulada por dia do mês"><defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".35"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
+  <div class="chart-wrap" data-c="${data}"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Produção acumulada por dia do mês"><defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d4ed8" stop-opacity=".08"/><stop offset="1" stop-color="#1d4ed8" stop-opacity="0"/></linearGradient></defs>
   ${gl}${xl}${pace}${area?`<path d="${area}" fill="url(#ga)"/>`:""}${path?`<path class="ln" d="${path}"/>`:""}${last?`<circle class="dotc" cx="${x(last.d)}" cy="${y(last.acc)}" r="5"/>`:""}
   <line class="cross" x1="0" x2="0" y1="${pt}" y2="${H-pb}" visibility="hidden"/><circle class="dotc hv" r="5" visibility="hidden"/></svg><div class="tip" hidden></div></div>
   <div class="legend"><span><i></i>produção acumulada</span>${meta>0?'<span><i class="dash"></i>ritmo para bater a meta</span>':""}</div></section>`;
