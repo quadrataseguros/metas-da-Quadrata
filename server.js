@@ -233,8 +233,10 @@ setInterval(() => { for (const c of clients) c.write(": ping\n\n"); }, 25e3);
 
 /* ---------- páginas ---------- */
 app.get("/healthz", (_req, res) => res.send("ok"));
-app.get("/login", (_req, res) => res.sendFile(path.join(__dirname, "public", "login.html")));
-app.get("/", (req, res) => (req.role ? res.sendFile(path.join(__dirname, "public", "index.html")) : res.redirect("/login")));
+// Páginas sempre revalidadas: depois de uma atualização, todos veem a versão nova sem limpar o cache.
+const pagina = (res, f) => res.set("Cache-Control", "no-cache").sendFile(path.join(__dirname, "public", f));
+app.get("/login", (_req, res) => pagina(res, "login.html"));
+app.get("/", (req, res) => (req.role ? pagina(res, "index.html") : res.redirect("/login")));
 app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
 app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ erro: "Erro no servidor. Tente de novo." }); });
