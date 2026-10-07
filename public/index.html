@@ -336,6 +336,8 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .gest .dias{padding:4px 0 6px}.gest .cap{display:block;margin-top:6px}
 .al{background:#fdf2f2;border:1px solid #f3d0d0;color:var(--bad);font-size:13px;padding:8px 10px;border-radius:var(--r);margin-bottom:8px}
 .ok-l{color:var(--good);font-size:14px;padding:6px 0}
+.pdfbox{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r);background:#fafbfc}
+.pdfbox .cap.ok{color:var(--good)}.pdfbox .cap.err{color:var(--bad)}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -430,6 +432,7 @@ table th{font-weight:600!important;letter-spacing:.04em}
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mT">
     <div class="mh"><h3 id="mT">Registrar venda</h3><button class="x" id="mX" aria-label="Fechar">✕</button></div>
     <form class="mb" id="form">
+      <div class="pdfbox"><input type="file" id="fPdf" accept="application/pdf,.pdf" hidden><button type="button" class="btn-g" id="bPdf">Preencher com a proposta (PDF)</button><span class="cap" id="pdfMsg">Lê cliente, seguradora, produto, tipo e prêmio líquido. A comissão você digita.</span></div>
       <div><span class="fl">Vendedora</span><div class="pick" id="pickV"></div></div>
       <div><span class="fl">Produto</span><div class="pick" id="pickP"></div></div>
       <div><span class="fl">Tipo</span><div class="pick" id="pickT"><button type="button" data-t="novo" aria-pressed="false">Novo seguro</button><button type="button" data-t="renovacao" aria-pressed="false">Renovação</button></div></div>
@@ -824,6 +827,56 @@ document.addEventListener("click",async e=>{
   try{await api("DELETE","/api/vendas/"+encodeURIComponent(v.id));toast("Venda excluída");await load()}catch(err){toast("Não foi possível excluir: "+(err.message||err.code))}
 });
 
+/* ---- ler proposta em PDF (no próprio navegador: o arquivo não vai para o servidor) ---- */
+let pdfjsP=null;
+const carregaPdfjs=()=>pdfjsP||(pdfjsP=new Promise((ok,er)=>{const sc=document.createElement("script");sc.src="/vendor/pdf.min.js";
+  sc.onload=()=>{pdfjsLib.GlobalWorkerOptions.workerSrc="/vendor/pdf.worker.min.js";ok(pdfjsLib)};sc.onerror=()=>{pdfjsP=null;er(new Error("não carregou o leitor de PDF"))};document.head.appendChild(sc)}));
+async function linhasPdf(buf){
+  const lib=await carregaPdfjs(),doc=await lib.getDocument({data:buf}).promise,out=[];
+  for(let n=1;n<=Math.min(doc.numPages,4);n++){
+    const tc=await (await doc.getPage(n)).getTextContent(),rows=[];
+    tc.items.filter(i=>i.str.trim()).forEach(i=>{const y=i.transform[5],x=i.transform[4];let r=rows.find(r=>Math.abs(r.y-y)<3);if(!r)rows.push(r={y,it:[]});r.it.push({x,s:i.str})});
+    rows.sort((a,b)=>b.y-a.y).forEach(r=>out.push(r.it.sort((a,b)=>a.x-b.x).map(i=>i.s).join(" ").replace(/\s+/g," ").trim()));
+  }
+  return out;
+}
+const SEG_PDF=[["PORTO",/porto seguro(?! ?bank)|porto seguro cia/i],["AZUL",/\bazul\b/i],["ITAÚ",/ita[uú] seguros/i],["ALLIANZ",/allianz/i],["TOKIO MARINE",/tokio/i],["BRADESCO",/bradesco/i],["YELLUM",/yel+um/i],["HDI",/\bhdi\b/i],["SUHAI",/suhai/i],["ZURICH",/zurich/i],["MITSUI",/mitsui/i],["ALIRO",/aliro/i]];
+function lerProposta(L){
+  const txt=L.join("\n"),r={},idx=re=>L.findIndex(l=>re.test(l)),money=t=>{const m=String(t||"").match(/R\$\s*([\d.]+,\d{2})/);return m?numBR(m[1]):null};
+  // seguradora: no topo do documento (evita "Porto Bank" nos descontos)
+  const iS=idx(/^\s*Seguradora\b/i);if(iS>-1)for(const [id,re] of SEG_PDF)if(re.test(L[iS+1]||"")){r.seguradora=id;break}
+  const topo=L.slice(0,30).join("\n").replace(/porto ?bank/gi,"");if(!r.seguradora)for(const [id,re] of SEG_PDF){if(re.test(topo)){r.seguradora=id;break}}
+  // produto pelo título
+  const t=L.slice(0,6).join(" ");
+  r.produto=/auto|autom[oó]v/i.test(t)?"auto":/resid/i.test(t)?"resid":/vida|pessoas/i.test(t)?"vida":/empres|condom|comerc/i.test(t)?"empre":/seguro/i.test(t)?"outros":null;
+  // tipo de operação
+  const iT=idx(/tipo de opera/i);const tt=iT>-1?(L[iT]+" "+(L[iT+1]||"")):txt;
+  r.tipo=/renova/i.test(tt)?"renovacao":/novo|nova/i.test(tt)?"novo":null;
+  // segurado: linha seguinte ao cabeçalho, sem datas e documentos
+  const iC=idx(/^\s*Segurado\(?a?\)?\b|^\s*Nome do segurado|^\s*Proponente\b/i);
+  if(iC>-1){const c=(L[iC+1]||"").replace(/\d{2}\/\d{2}\/\d{4}.*$/,"").replace(/\d{3}\.\d{3}\.\d{3}-\d{2}.*$/,"").replace(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}.*$/,"").trim();if(c&&!/[:]/.test(c))r.cliente=c.slice(0,80)}
+  // prêmio líquido: "Valor líquido" / "Prêmio líquido"
+  const iV=idx(/(valor|pr[eê]mio)\s+l[ií]quido/i);
+  if(iV>-1){r.valor=money(L[iV].split(/l[ií]quido/i)[1])??money(L[iV+1])??money(L[iV+2])}
+  return r;
+}
+$("bPdf").onclick=()=>$("fPdf").click();
+$("fPdf").addEventListener("change",async e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;const msg=$("pdfMsg");msg.className="cap";msg.textContent="Lendo a proposta…";
+  try{
+    const r=lerProposta(await linhasPdf(await f.arrayBuffer())),ach=[];
+    if(r.produto&&prod(r.produto)){selP=r.produto;ach.push("produto")}
+    if(r.tipo){selT=r.tipo;ach.push("tipo")}
+    if(r.seguradora&&SEGS.includes(r.seguradora)){$("fSeg").value=r.seguradora;ach.push("seguradora")}
+    if(r.cliente){$("fCli").value=r.cliente;ach.push("cliente")}
+    if(r.valor>0){$("fVal").value=fmtBR(r.valor);ach.push("prêmio líquido")}
+    upd();
+    const falta=["produto","tipo","seguradora","cliente","prêmio líquido"].filter(x=>!ach.includes(x));
+    msg.className=ach.length?"cap ok":"cap err";
+    msg.textContent=ach.length?`Preenchido: ${ach.join(", ")}.${falta.length?" Confira e complete: "+falta.join(", ")+".":""} Agora digite a comissão.`:"Não reconheci esta proposta. Preencha à mão.";
+  }catch(err){msg.className="cap err";msg.textContent="Não consegui ler o PDF ("+(err.message||err)+"). Preencha à mão."}
+});
+
 /* ---- registrar venda ---- */
 let selV=null,selP=null,selT=null,saving=false,EDIT=null;
 /* Lê valores no jeito brasileiro: "2.134,55", "R$ 2.134,55", "2134,55", "2134.55" e "1.234" (milhar) */
@@ -842,6 +895,7 @@ function openModal(v){
   $("fVal").value=EDIT?fmtBR(EDIT.credito||EDIT.valor||""):"";$("fPct").value=EDIT&&EDIT.percentual!=null?fmtBR(EDIT.percentual):"";$("fCli").value=EDIT&&EDIT.cliente?EDIT.cliente:"";$("fErr").textContent="";
   // a vendedora não recebe cliente e % do servidor: em branco, mantém o que ela já lançou
   const oculto=EDIT&&ROLE!=="master";$("fCli").placeholder=oculto?"em branco = manter":"";$("fPct").placeholder=oculto?"em branco = manter":"";
+  $("pdfMsg").className="cap";$("pdfMsg").textContent="Lê cliente, seguradora, produto, tipo e prêmio líquido. A comissão você digita.";
   $("mT").textContent=EDIT?"Corrigir venda":"Registrar venda";$("mSave").textContent=EDIT?"Salvar correção":"Salvar venda";
   const t=new Date();$("fData").value=EDIT?EDIT.data:t.getFullYear()+"-"+pad(t.getMonth()+1)+"-"+pad(t.getDate());
   $("pickV").parentElement.hidden=!!MEU;
