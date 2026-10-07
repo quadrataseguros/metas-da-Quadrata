@@ -324,6 +324,18 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .acts{display:inline-flex;gap:2px;white-space:nowrap}
 .ic{background:none;border:1px solid transparent;color:var(--fg3);padding:5px;line-height:0;cursor:pointer;border-radius:var(--r)}
 .ic:hover{color:var(--brand);border-color:var(--line)}.ic.del:hover{color:var(--bad)}
+.foco-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:24px}
+@media (max-width:760px){.foco-g{grid-template-columns:1fr}}
+.foco .lbl{font-size:13px;color:var(--fg2);margin-bottom:6px}.foco .big small{font-size:.45em;color:var(--fg3)}
+.foco .sub{font-size:13px;color:var(--fg2);margin-top:8px}
+.dir{list-style:none;margin:0;padding:0;display:grid;gap:10px}.dir li{border-left:2px solid var(--warn);padding-left:10px;font-size:14px}.dir li div{color:var(--fg2);font-size:13px;margin-top:2px}
+.gest-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:24px}
+.gest h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg3);margin:0 0 10px;font-weight:600}
+.kv{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}.kv span{display:flex;align-items:center;gap:6px;min-width:0}
+.kv.sm{font-size:12.5px}.kv b{white-space:nowrap;font-weight:600}.kv .bad,.kv b.bad{color:var(--bad)}
+.gest .dias{padding:4px 0 6px}.gest .cap{display:block;margin-top:6px}
+.al{background:#fdf2f2;border:1px solid #f3d0d0;color:var(--bad);font-size:13px;padding:8px 10px;border-radius:var(--r);margin-bottom:8px}
+.ok-l{color:var(--good);font-size:14px;padding:6px 0}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -386,6 +398,7 @@ table th{font-weight:600!important;letter-spacing:.04em}
 <main id="master" hidden>
   <div id="masterLock" class="lock" hidden><b>Área do acesso master</b>Entre com a senha master para lançar o histórico, mudar regras e apagar vendas.</div>
   <div id="masterBody" hidden style="display:flex;flex-direction:column;gap:20px">
+    <section class="card gest" id="gestao"></section>
     <section class="card">
       <div class="card-h"><h2 id="histT">Vendas do ano anterior</h2><span class="cap">Prêmio em R$ por seguradora e produto. Dá para colar direto do Excel.</span></div>
       <div class="tbl"><table class="hist" id="hist"></table></div>
@@ -455,7 +468,7 @@ const DEFAULT_RULES={
   minimo:800, ptsBaixo:5,
   metas:{renovacoes:52,novos:18},
   niveis:[{nome:"Bronze",pts:100},{nome:"Prata",pts:150},{nome:"Ouro",pts:200,meta:true},{nome:"Diamante",pts:250}],
-  metaEquipe:800, crescimento:18, premioPct:10, premioDiv:[50,30,20], premioSoNaMeta:false,
+  metaEquipe:800, metaDia:8, crescimento:18, premioPct:10, premioDiv:[50,30,20], premioSoNaMeta:false,
   premios:{Bronze:"",Prata:"",Ouro:"",Diamante:"",equipe:""}
 };
 let PREM={}, RULES=DEFAULT_RULES, SALES=[], HIST={}, gotSales=false, gotHist=false, db=null, user=null, CAN_EDIT=false, VIEW="vendedoras";
@@ -613,9 +626,72 @@ function salesHTML(C,tv){
   ${L.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Valor</th><th class="r">Pontos</th>${tv?"":"<th></th>"}</tr></thead><tbody>${body}</tbody></table></div>
   ${!tv&&L.length>8?`<button class="more" data-more>${SHOWALL?"Mostrar menos":`Ver todas (${L.length})`}</button>`:""}`:`<div class="empty">Nenhuma venda neste mês ainda. Use <b>Registrar venda</b> para lançar a primeira.</div>`}</section>`;
 }
+/* ---- ritmo diário, foco e alertas de gestão ---- */
+const iso=(y,m,d)=>y+"-"+pad(m+1)+"-"+pad(d);
+const util=(y,m,d)=>{const w=new Date(y,m,d).getDay();return w>0&&w<6};
+function ritmo(C){
+  const L=lastDay(),hoje=isNow()?new Date().getDate():(new Date(VY,VM,1)>now?0:L+1);
+  const uteis=[...Array(L)].map((_,i)=>i+1).filter(d=>util(VY,VM,d));
+  const passados=uteis.filter(d=>d<hoje),ateHoje=uteis.filter(d=>d<=hoje);
+  const md=+(RULES.metaDia??8)||0,seg=C.list;
+  const hojeN=isNow()?seg.filter(s=>s.data===iso(VY,VM,hoje)).length:0;
+  const media=passados.length?seg.filter(s=>+s.data.slice(8,10)<hoje).length/passados.length:0;
+  const frac=uteis.length?Math.min(1,ateHoje.length/uteis.length):0;
+  return {uteis,passados,hoje,hojeN,md,media,frac,metaMes:md*uteis.length,proj:Math.round(media*uteis.length)};
+}
+const DIRECAO={
+  auto:"Revise as renovações dos próximos 30 dias e cote auto para quem só tem residencial ou vida.",
+  resid:"Ofereça residencial junto com todo seguro auto: é barato e fecha rápido.",
+  vida:"Pergunte sobre filhos e financiamentos: todo cliente com família é cliente de vida.",
+  empre:"Procure na carteira de auto quem tem comércio ou empresa e ofereça o empresarial.",
+  outros:"Lembre a carteira de viagem, equipamentos e responsabilidade civil."
+};
+const atrasados=(C,r)=>C.prods.filter(p=>p.meta>0&&p.cur<p.meta*r.frac).map(p=>({...p,falta:p.meta*r.frac-p.cur,pc:p.cur/p.meta})).sort((a,b)=>a.pc-b.pc);
+function focoHTML(C,tv){
+  if(!isNow())return "";
+  const r=ritmo(C),at=atrasados(C,r).slice(0,3),pc=r.md?Math.min(1,r.hojeN/r.md):0;
+  return `<section class="card foco"><div class="card-h"><h2>Foco de hoje</h2><span class="badge">${new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"numeric",month:"long"})}</span></div>
+  <div class="foco-g"><div><div class="lbl">Vendas da equipe hoje</div><div class="big pts">${r.hojeN}<small> / ${r.md}</small></div><div class="track"><i style="width:${pc*100}%"></i></div>
+  <div class="sub">${r.hojeN>=r.md?"Meta do dia batida!":`faltam ${r.md-r.hojeN} venda${r.md-r.hojeN>1?"s":""} para a meta do dia`}</div></div>
+  <div>${at.length?`<div class="lbl">Produtos abaixo do ritmo da meta</div><ul class="dir">${at.map(p=>`<li><b>${esc(p.nome.replace(" (sem saúde e odonto)",""))}</b> <span class="cap">${Math.round(p.pc*100)}% da meta · faltam ${Rk(p.falta)} para o ritmo</span>${tv?"":`<div>${DIRECAO[p.id]||""}</div>`}</li>`).join("")}</ul>`:`<div class="lbl">Produtos</div><div class="sub">${C.hasPrev?"Todos os produtos estão no ritmo da meta. Continue assim!":"Metas por produto aparecem quando o histórico do ano anterior for lançado."}</div>`}</div></div></section>`;
+}
+function gestaoHTML(C){
+  const r=ritmo(C),fd=d=>pad(d)+"/"+pad(VM+1);
+  const semVenda=VEND.map(v=>({v,dias:r.passados.filter(d=>!C.list.some(s=>s.vendedora===v.id&&s.data===iso(VY,VM,d)))}));
+  const eqZero=r.passados.filter(d=>!C.list.some(s=>s.data===iso(VY,VM,d)));
+  const at=atrasados(C,r),sa=C.segs.filter(g=>g.meta>0&&g.cur<g.meta*r.frac).sort((a,b)=>a.cur/a.meta-b.cur/b.meta);
+  // comissão média: só seguros (consórcio fica fora), ponderada pelo prêmio
+  const seg=C.seg0.filter(s=>s.percentual>0&&s.valor>0);
+  const pctMed=l=>{const v=l.reduce((a,s)=>a+ +s.valor,0);return v?l.reduce((a,s)=>a+ +s.comissao,0)/v*100:0};
+  const geral=pctMed(seg),porProd={};RULES.produtos.forEach(p=>porProd[p.id]=pctMed(seg.filter(s=>s.produto===p.id)));
+  const vendBaixa=VEND.map(v=>({v,m:pctMed(seg.filter(s=>s.vendedora===v.id)),n:seg.filter(s=>s.vendedora===v.id).length})).filter(x=>x.n&&x.m<geral-1.5);
+  const baixas=seg.filter(s=>porProd[s.produto]&&s.percentual<porProd[s.produto]*0.75).sort(byNew).slice(0,8);
+  const pct=n=>n.toLocaleString("pt-BR",{maximumFractionDigits:1})+"%";
+  const ok=t=>`<div class="ok-l">✓ ${t}</div>`;
+  return `<div class="card-h"><h2>Gestão do mês</h2><span class="cap">Só você vê este quadro</span></div>
+  <div class="gest-g">
+   <div><h3>Ritmo de vendas</h3>
+    ${isNow()?`<div class="kv"><span>Hoje</span><b>${r.hojeN} de ${r.md}</b></div>`:""}
+    <div class="kv"><span>Média por dia útil</span><b class="${r.media<r.md?"bad":""}">${r.media.toLocaleString("pt-BR",{maximumFractionDigits:1})}</b></div>
+    <div class="kv"><span>Meta do mês (${r.uteis.length} dias úteis × ${r.md})</span><b>${r.metaMes} vendas</b></div>
+    <div class="kv"><span>Vendidas até agora</span><b>${C.list.length}</b></div>
+    <div class="kv"><span>Projeção no ritmo atual</span><b class="${r.proj<r.metaMes?"bad":""}">${r.proj} vendas</b></div></div>
+   <div><h3>Dias úteis sem venda</h3>
+    ${eqZero.length?`<div class="al">Equipe sem nenhuma venda: ${eqZero.map(fd).join(", ")}</div>`:""}
+    ${semVenda.some(x=>x.dias.length)?semVenda.filter(x=>x.dias.length).map(x=>`<div class="kv"><span><i class="dot" style="background:${x.v.cor}"></i>${esc(x.v.nome)}</span><b class="bad">${x.dias.length} dia${x.dias.length>1?"s":""}</b></div><div class="cap dias">${x.dias.map(fd).join(", ")}</div>`).join(""):ok(r.passados.length?"Todas venderam em todos os dias úteis.":"Ainda não há dias úteis completos no mês.")}
+    <div class="cap">Segunda a sexta, até ontem. Feriados não são descontados.</div></div>
+   <div><h3>Abaixo do ritmo da meta</h3>
+    ${at.length||sa.length?[...at.map(p=>`<div class="kv"><span>${esc(p.nome.replace(" (sem saúde e odonto)",""))}</span><b class="bad">${Math.round(p.pc*100)}% · faltam ${Rk(p.falta)}</b></div><div class="cap dias">${DIRECAO[p.id]||""}</div>`),...sa.map(g=>`<div class="kv"><span>${esc(g.nome)}</span><b class="bad">${Math.round(g.cur/g.meta*100)}% · faltam ${Rk(g.meta*r.frac-g.cur)}</b></div>`)].join(""):ok(C.hasPrev?"Produtos e seguradoras no ritmo.":"Lance o histórico do ano anterior para comparar.")}
+    <div class="cap">Ritmo = meta do mês × dias úteis já passados.</div></div>
+   <div><h3>Comissões abaixo da média</h3>
+    <div class="kv"><span>Média da equipe no mês</span><b>${seg.length?pct(geral):"—"}</b></div>
+    ${vendBaixa.map(x=>`<div class="kv"><span><i class="dot" style="background:${x.v.cor}"></i>${esc(x.v.nome)}</span><b class="bad">${pct(x.m)}</b></div>`).join("")}
+    ${baixas.length?`<div class="cap" style="margin-top:8px">Vendas com comissão 25% abaixo da média do produto:</div>${baixas.map(s=>`<div class="kv sm"><span>${s.data.slice(8,10)}/${s.data.slice(5,7)} · ${esc(vend(s.vendedora).nome)} · ${esc((prod(s.produto)||{nome:s.produto}).nome.replace(" (sem saúde e odonto)",""))} · ${esc(s.cliente||"")}</span><b class="bad">${pct(+s.percentual)} <small>(média ${pct(porProd[s.produto])})</small></b></div>`).join("")}`:seg.length?ok("Nenhuma comissão muito abaixo da média."):""}</div>
+  </div>`;
+}
 function dashHTML(C,tv){
   const cr=+RULES.crescimento||0;
-  return heroHTML(C)+goalsHTML(C)+premioHTML(C)+credHTML(C)+podiumHTML(C)+chartHTML(C)
+  return heroHTML(C)+goalsHTML(C)+focoHTML(C,tv)+premioHTML(C)+credHTML(C)+podiumHTML(C)+chartHTML(C)
     +barsHTML("Metas por seguradora",`ano anterior + ${cr}%`,[...C.segs].sort((a,b)=>Math.max(b.meta,b.cur)-Math.max(a.meta,a.cur)))
     +barsHTML("Metas por produto",`ano anterior + ${cr}%`,C.prods.map(p=>({...p,nome:p.nome.replace(" (sem saúde e odonto)","")})))
     +salesHTML(C,tv);
@@ -692,9 +768,11 @@ function renderMaster(C){
       <label for="rPp">Premiação (% da comissão sobre o que passou do ano anterior)<input id="rPp" type="number" min="0" value="${RULES.premioPct??10}"></label>
       <label for="rD0">Divisão 1º / 2º / 3º lugar (%)<span style="display:flex;gap:6px"><input id="rD0" type="number" min="0" value="${(RULES.premioDiv||[50,30,20])[0]}"><input id="rD1" type="number" min="0" value="${(RULES.premioDiv||[50,30,20])[1]}"><input id="rD2" type="number" min="0" value="${(RULES.premioDiv||[50,30,20])[2]}"></span></label>
       <label for="rSm" style="flex-direction:row;gap:8px"><input id="rSm" type="checkbox" ${RULES.premioSoNaMeta?"checked":""}> Só premiar depois de bater a meta de crescimento</label>
+      <label for="rMd">Meta de vendas por dia útil (equipe)<input id="rMd" type="number" min="0" value="${RULES.metaDia??8}"></label>
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
+  $("gestao").innerHTML=gestaoHTML(C);
   $("mSales").innerHTML=salesTable(C.list,!isDemo(),true);
   const tc=C.list.reduce((a,s)=>a+(+s.comissao||0),0),tp=C.list.reduce((a,s)=>a+(+s.valor||0),0);
   $("mCom")?.remove();
@@ -724,7 +802,7 @@ $("rulesSave").onclick=async()=>{
   document.querySelectorAll("#rules input[data-k=nivel]").forEach(i=>{r.niveis[+i.dataset.i].pts=Math.max(0,+i.value||0)});
   document.querySelectorAll("#rules input[data-k=premio]").forEach(i=>{r.premios[i.dataset.id]=i.value.trim()});
   r.metas={renovacoes:Math.max(0,+$("rMr").value||0),novos:Math.max(0,+$("rMn").value||0)};r.minimo=Math.max(0,+$("rMin").value||0);r.ptsBaixo=Math.max(0,+$("rPb").value||0);
-  r.metaEquipe=Math.max(0,+$("rEq").value||0);r.crescimento=Math.max(0,+$("rCr").value||0);r.premioPct=Math.max(0,+$("rPp").value||0);r.premioDiv=[0,1,2].map(i=>Math.max(0,+$("rD"+i).value||0));r.premioSoNaMeta=$("rSm").checked;
+  r.metaEquipe=Math.max(0,+$("rEq").value||0);r.crescimento=Math.max(0,+$("rCr").value||0);r.metaDia=Math.max(0,+$("rMd").value||0);r.premioPct=Math.max(0,+$("rPp").value||0);r.premioDiv=[0,1,2].map(i=>Math.max(0,+$("rD"+i).value||0));r.premioSoNaMeta=$("rSm").checked;
   $("rulesSave").disabled=true;
   try{await db.doc("config/regras").set(r);rulesDirty=false;toast("Regras salvas")}
   catch(e){$("rulesMsg").textContent="Não foi possível salvar: "+(e.message||e.code)}finally{$("rulesSave").disabled=false}
