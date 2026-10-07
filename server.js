@@ -133,7 +133,10 @@ app.get("/api/estado", READ, async (req, res, next) => {
   try {
     const e = await store.estado();
     const premiacao = premiacoes(e);
-    res.json(req.role === "master" ? { ...e, premiacao } : { ...e, vendas: (e.vendas || []).map(publica), premiacao });
+    // capacitação: o master vê todas; cada vendedora só a própria; a TV não vê
+    const cap = e.capacitacao || {};
+    const capacitacao = req.role === "master" ? cap : req.role === "equipe" ? { [req.vendedora]: cap[req.vendedora] || {} } : {};
+    res.json(req.role === "master" ? { ...e, capacitacao, premiacao } : { ...e, vendas: (e.vendas || []).map(publica), capacitacao, premiacao });
   } catch (e) { next(e); }
 });
 
@@ -227,6 +230,15 @@ app.put("/api/historico/:chave", need("master"), async (req, res, next) => {
     }
     await store.setHistorico(req.params.chave, valores);
     broadcast({ tipo: "mudou" });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+app.put("/api/capacitacao", need("equipe"), async (req, res, next) => {
+  try {
+    const item = String((req.body || {}).item || "");
+    if (!/^[a-z0-9_-]{1,40}$/.test(item)) return res.status(400).json({ erro: "Item inválido." });
+    await store.setCap(req.vendedora, item, (req.body || {}).feito ? Date.now() : 0);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

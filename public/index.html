@@ -338,6 +338,13 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .ok-l{color:var(--good);font-size:14px;padding:6px 0}
 .pdfbox{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 12px;border:1px dashed var(--line2);border-radius:var(--r);background:#fafbfc}
 .pdfbox .cap.ok{color:var(--good)}.pdfbox .cap.err{color:var(--bad)}
+#cap #capBody{display:flex;flex-direction:column;gap:14px;max-width:860px;margin:0 auto}
+.card.mod{padding:0!important}.mod-h{width:100%;display:flex;align-items:center;gap:12px;background:none;border:0;padding:16px 22px;font:inherit;font-size:15px;color:var(--fg);cursor:pointer;text-align:left}
+.mod-h b{flex:1;font-weight:600}.chev{color:var(--fg3);font-size:18px;width:16px;text-align:center}
+.mod-b{padding:0 22px 18px;border-top:1px solid var(--line)}.mod-b h4{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg3);margin:16px 0 6px;font-weight:600}
+.mod-b p,.mod-b li{font-size:14px;line-height:1.55;margin:4px 0}.mod-b ul{padding-left:18px;margin:0}.mod-b .q{border-left:2px solid var(--brand);padding-left:10px;color:var(--fg2)}
+.chk{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}.chk input{width:18px;height:18px;accent-color:var(--brand)}
+td.okc{color:var(--good);font-weight:600}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -380,6 +387,7 @@ table th{font-weight:600!important;letter-spacing:.04em}
     </div>
     <nav aria-label="Telas">
       <a href="#vendedoras" data-v="vendedoras">Vendedoras</a>
+      <a href="#capacitacao" data-v="capacitacao" id="navCap">Capacitação</a>
       <a href="#monitor" data-v="monitor">Monitor</a>
       <a href="#master" data-v="master" id="navMaster" hidden>Master</a>
     </nav>
@@ -396,11 +404,15 @@ table th{font-weight:600!important;letter-spacing:.04em}
   <div class="dash" id="dash"></div>
 </main>
 
+<!-- Capacitação -->
+<main id="cap" hidden><div id="capBody"></div></main>
+
 <!-- Master -->
 <main id="master" hidden>
   <div id="masterLock" class="lock" hidden><b>Área do acesso master</b>Entre com a senha master para lançar o histórico, mudar regras e apagar vendas.</div>
   <div id="masterBody" hidden style="display:flex;flex-direction:column;gap:20px">
     <section class="card gest" id="gestao"></section>
+    <section class="card" id="capMaster"></section>
     <section class="card">
       <div class="card-h"><h2 id="histT">Vendas do ano anterior</h2><span class="cap">Prêmio em R$ por seguradora e produto. Dá para colar direto do Excel.</span></div>
       <div class="tbl"><table class="hist" id="hist"></table></div>
@@ -727,13 +739,14 @@ function render(){
   $("mLbl").textContent=mesNome();
   const C=calc();
   document.body.classList.toggle("tv",VIEW==="monitor");
-  $("app").hidden=VIEW!=="vendedoras";$("master").hidden=VIEW!=="master";$("tv").hidden=VIEW!=="monitor";
+  $("app").hidden=VIEW!=="vendedoras";$("cap").hidden=VIEW!=="capacitacao";$("master").hidden=VIEW!=="master";$("tv").hidden=VIEW!=="monitor";
   document.querySelectorAll("nav a").forEach(a=>a.setAttribute("aria-current",a.dataset.v===VIEW?"page":"false"));
   if($("btnNova"))$("btnNova").hidden=VIEW==="master";
 
   if(VIEW==="vendedoras")$("dash").innerHTML=dashHTML(C,false);
   if(VIEW==="monitor"){$("tvMonth").textContent=mesNome();$("tvDash").innerHTML=dashHTML(C,true)}
   if(VIEW==="master")renderMaster(C);
+  if(VIEW==="capacitacao")$("capBody").innerHTML=capHTML();
 }
 const byNew=(a,b)=>(b.data+String(b.ts||0).padStart(15,"0")).localeCompare(a.data+String(a.ts||0).padStart(15,"0"));
 function salesTable(list,del,master){
@@ -775,7 +788,7 @@ function renderMaster(C){
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
-  $("gestao").innerHTML=gestaoHTML(C);
+  $("gestao").innerHTML=gestaoHTML(C);$("capMaster").innerHTML=capMasterHTML();
   $("mSales").innerHTML=salesTable(C.list,!isDemo(),true);
   const tc=C.list.reduce((a,s)=>a+(+s.comissao||0),0),tp=C.list.reduce((a,s)=>a+(+s.valor||0),0);
   $("mCom")?.remove();
@@ -877,6 +890,67 @@ $("fPdf").addEventListener("change",async e=>{
   }catch(err){msg.className="cap err";msg.textContent="Não consegui ler o PDF ("+(err.message||err)+"). Preencha à mão."}
 });
 
+/* ---- capacitação: roteiro por produto + checklist de cada vendedora ---- */
+const CAP_MODS=[
+ {id:"auto",nome:"Automóvel",quem:"Todo cliente com carro, moto ou caminhão. Prioridade: renovações dos próximos 30 dias e clientes de outros ramos que ainda não têm auto conosco.",
+  abre:"“Quando vence o seguro do seu carro? Posso fazer uma comparação sem compromisso para você ver se está pagando o justo.”",
+  args:["Comparamos várias seguradoras de uma vez: o cliente não precisa cotar sozinho.","Explique franquia, carro reserva e assistência 24h: o barato que não cobre o que ele usa sai caro.","Na renovação, mostre o bônus acumulado e o que muda se ele trocar de seguradora."],
+  obj:[["Está caro.","Ajuste franquia, carro reserva e coberturas de vidros antes de baixar o preço. Mostre as opções lado a lado."],["Vou ver com o meu banco.","O banco oferece uma seguradora; nós comparamos várias e cuidamos do sinistro junto com ele."]],
+  tar:[["ler","Li o roteiro de Automóvel"],["cot","Fiz 3 cotações de auto nesta semana"],["ren","Liguei para as renovações do mês"]]},
+ {id:"resid",nome:"Residencial",quem:"Todo cliente de auto ou vida que tem casa ou apartamento, próprio ou alugado.",
+  abre:"“Seu apartamento tem seguro? Por menos de um cafezinho por dia você protege a casa e ainda ganha chaveiro, encanador e eletricista.”",
+  args:["É barato e fecha rápido: ofereça junto com todo seguro auto.","As assistências (chaveiro, encanador, eletricista) são usadas de verdade: o cliente sente o valor.","O seguro do condomínio não cobre o que está dentro do apartamento."],
+  obj:[["O condomínio já tem seguro.","Ele cobre a estrutura do prédio, não os seus móveis, eletrônicos e danos a vizinhos."],["Nunca aconteceu nada.","Por isso é barato. E as assistências você usa mesmo sem sinistro."]],
+  tar:[["ler","Li o roteiro de Residencial"],["cross","Ofereci residencial em uma venda de auto"],["cot","Fiz 2 cotações de residencial"]]},
+ {id:"vida",nome:"Vida",quem:"Clientes com filhos, cônjuge, financiamento de imóvel ou que são a principal renda da família.",
+  abre:"“Se você ficar sem poder trabalhar por um tempo, como fica a sua família? Posso te mostrar uma proteção que cabe no seu orçamento.”",
+  args:["Fale de quem depende do cliente, não de morte.","Coberturas em vida (doenças graves, invalidez, diárias) usadas ainda em vida.","O valor é fixo e baixo quando contratado cedo."],
+  obj:[["Já tenho pela empresa.","O da empresa acaba quando você sai e costuma cobrir pouco. O seu é seu."],["Vou pensar.","Combine uma data para retomar e envie a simulação por escrito."]],
+  tar:[["ler","Li o roteiro de Vida"],["perg","Perguntei sobre família e dependentes em 3 atendimentos"],["sim","Enviei 2 simulações de vida"]]},
+ {id:"empre",nome:"Empresarial",quem:"Clientes que têm comércio, escritório, consultório ou pequena empresa.",
+  abre:"“Se acontecer um incêndio ou roubo na sua loja amanhã, quanto tempo ela ficaria parada?”",
+  args:["Cobre prédio, estoque, equipamentos e lucros cessantes.","Responsabilidade civil protege contra danos a clientes e terceiros.","Um sinistro sem seguro pode fechar o negócio."],
+  obj:[["Meu negócio é pequeno.","Por isso mesmo: um prejuízo grande pesa mais e o seguro custa pouco."],["Já tenho alarme e câmeras.","Ótimo, isso até reduz o preço. Mas não cobre incêndio, dano elétrico ou responsabilidade civil."]],
+  tar:[["ler","Li o roteiro de Empresarial"],["mapa","Mapeei 5 clientes de auto que têm empresa"],["cot","Fiz 1 cotação de empresarial"]]},
+ {id:"outros",nome:"Demais seguros",quem:"Viagem, equipamentos, celular, responsabilidade civil profissional, bike e outros.",
+  abre:"“Você vai viajar nos próximos meses? O seguro viagem é obrigatório em vários países e custa pouco.”",
+  args:["São vendas rápidas que aumentam os pontos e o relacionamento.","Lembre a carteira nas épocas certas: férias, fim de ano, volta às aulas."],
+  obj:[["Não preciso.","Mostre um caso real de quanto custa uma emergência sem seguro."]],
+  tar:[["ler","Li o roteiro de Demais seguros"],["cam","Mandei uma campanha para a carteira"]]},
+ {id:"credito",nome:"Consórcio e financiamento",quem:"Quem quer trocar de carro, comprar imóvel ou reformar sem pagar juros altos. Só pela Porto.",
+  abre:"“Já falou sobre CONSÓRCIO hoje com seu cliente? Você pensa em trocar de carro ou comprar um imóvel nos próximos anos?”",
+  args:["Consórcio não tem juros, só taxa de administração.","Dá para usar o lance para antecipar a contemplação.","É um produto de alta rentabilidade para a corretora."],
+  obj:[["Demora para ser contemplado.","Mostre a estratégia de lance e compare com os juros do financiamento."]],
+  tar:[["ler","Li o roteiro de Consórcio"],["fal","Falei de consórcio com 5 clientes"]]}
+];
+const CAP_ITENS=CAP_MODS.flatMap(m=>m.tar.map(t=>m.id+"-"+t[0]));
+let CAP={},capAberto=null;
+const capMeu=()=>CAP[MEU]||{};
+function capHTML(){
+  if(ROLE!=="equipe")return `<section class="card"><div class="card-h"><h2>Capacitação</h2></div><p class="cap">Cada vendedora vê aqui os roteiros e marca o próprio checklist. Você acompanha o andamento no Master.</p></section>`+CAP_MODS.map(m=>modHTML(m,false)).join("");
+  const feito=capMeu(),n=CAP_ITENS.filter(i=>feito[i]).length;
+  return `<section class="card"><div class="card-h"><h2>Capacitação</h2><span class="badge">${n} de ${CAP_ITENS.length} concluídos</span></div>
+  <p class="cap">Leia o roteiro de cada produto e marque o que já fez. Só você e o Fabricio veem o seu andamento.</p><div class="track"><i style="width:${n/CAP_ITENS.length*100}%"></i></div></section>`+CAP_MODS.map(m=>modHTML(m,true)).join("");
+}
+function modHTML(m,check){
+  const f=capMeu(),feitos=m.tar.filter(t=>f[m.id+"-"+t[0]]).length,aberto=capAberto===m.id;
+  return `<section class="card mod"><button type="button" class="mod-h" data-mod="${m.id}" aria-expanded="${aberto}"><b>${esc(m.nome)}</b>${check?`<span class="cap">${feitos}/${m.tar.length}${feitos===m.tar.length?" ✓":""}</span>`:""}<span class="chev">${aberto?"−":"+"}</span></button>
+  ${aberto?`<div class="mod-b"><h4>Para quem oferecer</h4><p>${esc(m.quem)}</p><h4>Como abrir a conversa</h4><p class="q">${esc(m.abre)}</p>
+  <h4>Argumentos</h4><ul>${m.args.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>
+  <h4>Objeções comuns</h4>${m.obj.map(o=>`<p><b>${esc(o[0])}</b><br>${esc(o[1])}</p>`).join("")}
+  ${check?`<h4>Checklist</h4>${m.tar.map(t=>{const id=m.id+"-"+t[0];return `<label class="chk"><input type="checkbox" data-cap="${id}" ${f[id]?"checked":""}> ${esc(t[1])}</label>`}).join("")}`:""}</div>`:""}</section>`;
+}
+function capMasterHTML(){
+  const linhas=VEND.map(v=>{const f=CAP[v.id]||{},n=CAP_ITENS.filter(i=>f[i]).length;
+    return `<tr><td class="strong"><span class="dot" style="background:${v.cor}"></span>${esc(v.nome)}</td>${CAP_MODS.map(m=>{const k=m.tar.filter(t=>f[m.id+"-"+t[0]]).length;return `<td class="r n ${k===m.tar.length?"okc":""}">${k}/${m.tar.length}</td>`}).join("")}<td class="r n strong">${Math.round(n/CAP_ITENS.length*100)}%</td></tr>`}).join("");
+  return `<div class="card-h"><h2>Capacitação da equipe</h2><span class="cap">Itens do checklist marcados por cada vendedora</span></div>
+  <div class="tbl"><table><thead><tr><th>Vendedora</th>${CAP_MODS.map(m=>`<th class="r">${esc(m.nome.split(" ")[0])}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>${linhas}</tbody></table></div>`;
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-mod]");if(b){capAberto=capAberto===b.dataset.mod?null:b.dataset.mod;render()}});
+document.addEventListener("change",async e=>{const c=e.target.closest("[data-cap]");if(!c)return;
+  const id=c.dataset.cap,feito=c.checked;(CAP[MEU]??={})[id]=feito?Date.now():0;if(!feito)delete CAP[MEU][id];render();
+  try{await api("PUT","/api/capacitacao",{item:id,feito})}catch(err){toast("Não foi possível salvar: "+(err.message||err.code));await load()}});
+
 /* ---- registrar venda ---- */
 let selV=null,selP=null,selT=null,saving=false,EDIT=null;
 /* Lê valores no jeito brasileiro: "2.134,55", "R$ 2.134,55", "2134,55", "2134.55" e "1.234" (milhar) */
@@ -953,7 +1027,7 @@ async function save(){
 }
 
 /* ---- navegação ---- */
-function route(){const h=(location.hash||"").replace("#","");VIEW=["monitor","master","vendedoras"].includes(h)?h:"vendedoras";if(VIEW==="monitor"){VY=now.getFullYear();VM=now.getMonth();wake()}render()}
+function route(){const h=(location.hash||"").replace("#","");VIEW=["monitor","master","vendedoras","capacitacao"].includes(h)?h:"vendedoras";if(VIEW==="monitor"){VY=now.getFullYear();VM=now.getMonth();wake()}render()}
 addEventListener("hashchange",route);
 $("mPrev").onclick=()=>{VM--;if(VM<0){VM=11;VY--}histDirty=false;render()};
 $("mNext").onclick=()=>{VM++;if(VM>11){VM=0;VY++}histDirty=false;render()};
@@ -989,7 +1063,7 @@ const API={
 };
 async function load(){
   const d=await api("GET","/api/estado");
-  SALES=d.vendas||[];PREM=d.premiacao||{};HIST=d.historico||{};
+  SALES=d.vendas||[];PREM=d.premiacao||{};CAP=d.capacitacao||{};HIST=d.historico||{};
   RULES=d.regras?{...DEFAULT_RULES,...d.regras,premios:{...DEFAULT_RULES.premios,...(d.regras.premios||{})}}:DEFAULT_RULES;
   gotSales=gotHist=true;render();
 }

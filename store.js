@@ -33,13 +33,15 @@ if (url) {
                 tipo, cliente, percentual::float AS percentual, comissao::float AS comissao, credito::float AS credito
            FROM vendas WHERE data >= (current_date - interval '400 days') ORDER BY data DESC, ts DESC`),
         q(`SELECT chave, valores FROM historico`),
-        q(`SELECT dados FROM config WHERE id = 'regras'`),
+        q(`SELECT id, dados FROM config WHERE id IN ('regras','capacitacao')`),
       ]);
+      const cfg = Object.fromEntries(c.rows.map((r) => [r.id, r.dados]));
       const ts = (r) => ({ ...r, ts: Number(r.ts) });
       return {
         vendas: v.rows.map(ts),
         historico: Object.fromEntries(h.rows.map((r) => [r.chave, { valores: r.valores }])),
-        regras: c.rows[0] ? c.rows[0].dados : null,
+        regras: cfg.regras || null,
+        capacitacao: cfg.capacitacao || {},
       };
     },
     async addVenda(v) {
@@ -61,10 +63,15 @@ if (url) {
       `INSERT INTO historico (chave, valores) VALUES ($1, $2) ON CONFLICT (chave) DO UPDATE SET valores = $2, atualizado = now()`,
       [chave, JSON.stringify(valores)]),
     setRegras: (r) => q(`INSERT INTO config (id, dados) VALUES ('regras', $1) ON CONFLICT (id) DO UPDATE SET dados = $1`, [JSON.stringify(r)]),
+    // marca/desmarca um item de capacitação da vendedora (atualização atômica no JSONB)
+    setCap: (vend, item, valor) => valor
+      ? q(`INSERT INTO config (id, dados) VALUES ('capacitacao', jsonb_build_object($1::text, jsonb_build_object($2::text, $3::bigint)))
+           ON CONFLICT (id) DO UPDATE SET dados = jsonb_set(config.dados, ARRAY[$1::text], COALESCE(config.dados->$1::text, '{}'::jsonb) || jsonb_build_object($2::text, $3::bigint))`, [vend, item, valor])
+      : q(`UPDATE config SET dados = jsonb_set(dados, ARRAY[$1::text], COALESCE(dados->$1::text, '{}'::jsonb) - $2::text) WHERE id = 'capacitacao'`, [vend, item]),
   };
 } else {
   const file = process.env.DATA_FILE || path.join(__dirname, "dados-local.json");
-  let db = { vendas: [], historico: {}, regras: null };
+  let db = { vendas: [], historico: {}, regras: null, capacitacao: {} };
   const save = () => fs.writeFileSync(file, JSON.stringify(db, null, 2));
   module.exports = {
     tipo: "arquivo local " + file,
@@ -77,5 +84,6 @@ if (url) {
     async updVenda(v) { db.vendas = db.vendas.map((x) => (x.id === v.id ? v : x)); save(); },
     async setHistorico(chave, valores) { db.historico[chave] = { valores }; save(); },
     async setRegras(r) { db.regras = r; save(); },
+    async setCap(vend, item, valor) { db.capacitacao ??= {}; const m = (db.capacitacao[vend] ??= {}); if (valor) m[item] = valor; else delete m[item]; save(); },
   };
 }
