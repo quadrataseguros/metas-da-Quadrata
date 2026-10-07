@@ -422,11 +422,11 @@ table th{font-weight:600!important;letter-spacing:.04em}
       <div><span class="fl">Tipo</span><div class="pick" id="pickT"><button type="button" data-t="novo" aria-pressed="false">Novo seguro</button><button type="button" data-t="renovacao" aria-pressed="false">Renovação</button></div></div>
       <div><label class="fl" for="fSeg">Seguradora</label><select class="inp" id="fSeg"></select></div>
       <div class="r2">
-        <div><label class="fl" for="fVal" id="lVal">Prêmio líquido (R$)</label><input class="inp" type="number" id="fVal" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required></div>
+        <div><label class="fl" for="fVal" id="lVal">Prêmio líquido (R$)</label><input class="inp" type="text" id="fVal" inputmode="decimal" autocomplete="off" placeholder="Ex.: 2.134,55" required></div>
         <div><label class="fl" for="fData">Data</label><input class="inp" type="date" id="fData"></div>
       </div>
       <div class="r2">
-        <div><label class="fl" for="fPct" id="lPct">Comissão (% do prêmio líquido)</label><input class="inp" type="number" id="fPct" min="0" max="100" step="0.01" inputmode="decimal" placeholder="Ex.: 15" required></div>
+        <div><label class="fl" for="fPct" id="lPct">Comissão (% do prêmio líquido)</label><input class="inp" type="text" id="fPct" inputmode="decimal" autocomplete="off" placeholder="Ex.: 15 ou 12,5" required></div>
         <div><label class="fl" for="fCli">Nome do cliente</label><input class="inp" type="text" id="fCli" maxlength="80" placeholder="Obrigatório" required></div>
       </div>
       <div class="hint" style="font-size:12px;opacity:.7">Percentual e cliente ficam visíveis só para o Master.</div>
@@ -748,10 +748,20 @@ document.addEventListener("click",async e=>{
 
 /* ---- registrar venda ---- */
 let selV=null,selP=null,selT=null,saving=false,EDIT=null;
+/* Lê valores no jeito brasileiro: "2.134,55", "R$ 2.134,55", "2134,55", "2134.55" e "1.234" (milhar) */
+function numBR(v){
+  let t=String(v??"").replace(/[R$\s\u00a0]/g,"");if(!t)return NaN;
+  const c=t.lastIndexOf(","),d=t.lastIndexOf(".");
+  if(c>-1&&d>-1)t=c>d?t.replace(/\./g,"").replace(",","."):t.replace(/,/g,"");
+  else if(c>-1)t=t.replace(/\./g,"").replace(",",".");
+  else if(d>-1&&/^\d{1,3}(\.\d{3})+$/.test(t))t=t.replace(/\./g,"");
+  return /^-?\d*\.?\d+$/.test(t)?+t:NaN;
+}
+const fmtBR=n=>isFinite(n)&&n!==""?(+n).toLocaleString("pt-BR",{minimumFractionDigits:Number.isInteger(+n)?0:2,maximumFractionDigits:2}):"";
 function openModal(v){
   EDIT=v&&v.id?v:null;
   selV=EDIT?EDIT.vendedora:(MEU||null);selP=EDIT?EDIT.produto:null;selT=EDIT?EDIT.tipo:null;
-  $("fVal").value=EDIT?(EDIT.credito||EDIT.valor||""):"";$("fPct").value=EDIT&&EDIT.percentual!=null?EDIT.percentual:"";$("fCli").value=EDIT&&EDIT.cliente?EDIT.cliente:"";$("fErr").textContent="";
+  $("fVal").value=EDIT?fmtBR(EDIT.credito||EDIT.valor||""):"";$("fPct").value=EDIT&&EDIT.percentual!=null?fmtBR(EDIT.percentual):"";$("fCli").value=EDIT&&EDIT.cliente?EDIT.cliente:"";$("fErr").textContent="";
   // a vendedora não recebe cliente e % do servidor: em branco, mantém o que ela já lançou
   const oculto=EDIT&&ROLE!=="master";$("fCli").placeholder=oculto?"em branco = manter":"";$("fPct").placeholder=oculto?"em branco = manter":"";
   $("mT").textContent=EDIT?"Corrigir venda":"Registrar venda";$("mSave").textContent=EDIT?"Salvar correção":"Salvar venda";
@@ -771,14 +781,16 @@ function upd(){
   document.querySelectorAll("#pickT [data-t]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.t===selT));
   const cr=!!(p&&p.porto);
   $("lVal").textContent=cr?"Valor do crédito (R$)":"Prêmio líquido (R$)";$("lPct").textContent=cr?"Comissão (% do crédito)":"Comissão (% do prêmio líquido)";
-  $("fPct").disabled=cr;if(cr)$("fPct").value="0.3";else if($("fPct").value==="0.3")$("fPct").value="";
-  const pt=p?pontos(selP,$("fVal").value):0;
+  $("fPct").disabled=cr;if(cr)$("fPct").value="0,3";else if($("fPct").value==="0,3")$("fPct").value="";
+  const pt=p?pontos(selP,numBR($("fVal").value)||0):0;
   $("pvPts").textContent="+"+pt;
   $("pvTxt").textContent=selV&&p?`${vend(selV).nome} marca ${pt} pontos`+(p.porto?" (só Porto)":REDUZ.includes(selP)&&pt<p.pts?` (prêmio líquido abaixo de ${R(RULES.minimo)})`:""):"Escolha vendedora e produto";
 }
 $("pickV").addEventListener("click",e=>{const b=e.target.closest("[data-v]");if(b){selV=b.dataset.v;upd()}});
 $("pickT").addEventListener("click",e=>{const b=e.target.closest("[data-t]");if(b){selT=b.dataset.t;upd()}});
 $("fVal").addEventListener("input",upd);
+// ao sair do campo, mostra o valor formatado (2.134,55) para a vendedora conferir
+["fVal","fPct"].forEach(id=>$(id).addEventListener("blur",()=>{const n=numBR($(id).value);if(n>0)$(id).value=fmtBR(n)}));
 $("pickP").addEventListener("click",e=>{const b=e.target.closest("[data-p]");if(b){selP=b.dataset.p;upd()}});
 const closeM=()=>$("ov").hidden=true;
 $("mX").onclick=closeM;$("mCancel").onclick=closeM;$("ov").addEventListener("click",e=>{if(e.target.id==="ov")closeM()});
@@ -793,17 +805,17 @@ async function save(){
   if(!selT){$("fErr").textContent="Informe se é novo seguro ou renovação.";return}
   const seg=p.porto?"PORTO":$("fSeg").value;if(!seg){$("fErr").textContent="Escolha a seguradora.";return}
   const cr=!!p.porto;
-  if(!(+$("fVal").value>0)){$("fErr").textContent=cr?"Informe o valor do crédito.":"Informe o prêmio líquido.";return}
+  const val=numBR($("fVal").value);if(!(val>0)){$("fErr").textContent=cr?"Informe o valor do crédito.":"Informe o prêmio líquido.";return}
   const manter=EDIT&&ROLE!=="master";
-  const pctTxt=String($("fPct").value).trim(),pct=cr?0.3:(manter&&!pctTxt&&!prod(EDIT.produto)?.porto?"":+pctTxt.replace(",","."));if(pct!==""&&!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
+  const pctTxt=String($("fPct").value).trim(),pct=cr?0.3:(manter&&!pctTxt&&!prod(EDIT.produto)?.porto?"":numBR(pctTxt));if(pct!==""&&!(pct>0&&pct<=100)){$("fErr").textContent="Informe o percentual de comissão (entre 0 e 100).";return}
   const cli=$("fCli").value.trim();if(!cli&&!manter){$("fErr").textContent="Informe o nome do cliente.";return}
   const dt=$("fData").value;if(!dt){$("fErr").textContent="Informe a data da venda.";return}
   if(!db){$("fErr").textContent="Sem conexão com o servidor. Recarregue a página.";return}
   saving=true;$("mSave").disabled=true;
   try{
-    const rec={vendedora:selV,produto:selP,seguradora:seg,...(cr?{credito:+$("fVal").value}:{valor:Math.max(0,+$("fVal").value||0),percentual:pct}),data:dt,tipo:selT,cliente:cli,ts:Date.now()};
+    const rec={vendedora:selV,produto:selP,seguradora:seg,...(cr?{credito:val}:{valor:val,percentual:pct}),data:dt,tipo:selT,cliente:cli,ts:Date.now()};
     if(EDIT){await api("PUT","/api/vendas/"+encodeURIComponent(EDIT.id),rec);closeM();await load();toast("Venda corrigida")}
-    else{await db.collection("vendas").add(rec);closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${pontos(selP,$("fVal").value)} pontos para ${vend(selV).nome}`)}
+    else{await db.collection("vendas").add(rec);closeM();const [y,m]=dt.split("-").map(Number);VY=y;VM=m-1;render();toast(`Venda salva: +${pontos(selP,val)} pontos para ${vend(selV).nome}`)}
   }catch(err){$("fErr").textContent=/not_granted|permission|denied/.test(err.code||"")?"Este acesso é só de leitura.":"Não foi possível salvar: "+(err.message||err.code)}
   finally{saving=false;$("mSave").disabled=false}
 }
