@@ -48,5 +48,12 @@
    "de": 1763.83,
    "para": 1028.04
   }
- ]
+ ],
+ "metasValores": {
+  "_nota": "Nov/2026: renovações = 57 apólices de nov/2025 que vencem em nov/2026; novos na mesma proporção de outubro (18 novos para 52 renovações = 34,6%) → 20. Só preenche se o mês ainda não tiver números salvos.",
+  "2026-11": {
+   "renovacoes": 57,
+   "novos": 20
+  }
+ }
 }

@@ -678,6 +678,7 @@ function planoHTML(C){
     <h3 style="margin-top:16px">Quantidade</h3>
     <label class="kv"><span>Renovações</span><input id="plR" type="number" min="0" value="${+M.renovacoes||0}"></label>
     <label class="kv"><span>Novos seguros</span><input id="plN" type="number" min="0" value="${+M.novos||0}"></label>
+    ${(()=>{const pd=new Date(PY,PM-1,1),o=metasDoMes(ym(pd.getFullYear(),pd.getMonth())),pr=+o.renovacoes?(+o.novos||0)/+o.renovacoes:0;return `<div class="cap" style="margin:4px 0 8px">Novos = ${Math.round((+M.renovacoes?(+M.novos||0)/+M.renovacoes:0)*100)}% das renovações${pr?` · no mês anterior: ${Math.round(pr*100)}% (${o.novos} para ${o.renovacoes})`:""}</div>`})()}
     <label class="chk"><input type="checkbox" id="plL" ${lib?"checked":""}> Liberar estas metas para as vendedoras e a TV</label>
     <div class="row-act"><span class="cap" id="plMsg"></span><button class="btn" id="plSave" type="button">Salvar metas do mês</button></div></div>
    <div>${grupos.length?`<h3>Por seguradora</h3><table class="mini"><thead><tr><th>Grupo</th><th class="r">Base</th><th class="r">Meta</th></tr></thead><tbody>${lin(grupos)}</tbody></table>`:""}

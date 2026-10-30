@@ -346,7 +346,12 @@ async function aplicaSeed() {
       console.log(`seed: ajuste ${a.chave} ${a.seguradora} ${a.produto} ${a.de} -> ${a.para}`);
     }
   }
-  const mm = (e.regras || {}).metasMes || {}, novos = Object.entries(seed.metasMes || {}).filter(([k]) => !mm[k]);
-  if (novos.length) { await store.setRegras({ ...(e.regras || {}), metasMes: { ...mm, ...Object.fromEntries(novos) } }); console.log("seed: metas " + novos.map(([k]) => k)); }
+  const mm = { ...((e.regras || {}).metasMes || {}) };
+  const novos = Object.entries(seed.metasMes || {}).filter(([k]) => !mm[k]);
+  for (const [k, v] of novos) mm[k] = v;
+  // números do mês (renovações/novos) entram só se ainda não foram salvos no Master
+  const valores = Object.entries(seed.metasValores || {}).filter(([k, v]) => !k.startsWith("_") && !(mm[k] && mm[k].renovacoes != null));
+  for (const [k, v] of valores) mm[k] = { ...(mm[k] || { liberado: false }), ...v };
+  if (novos.length || valores.length) { await store.setRegras({ ...(e.regras || {}), metasMes: mm }); console.log("seed: metas " + [...novos, ...valores].map(([k]) => k)); }
 }
 store.init().then(aplicaSeed).then(() => app.listen(PORT, () => console.log(`Quadrata - Metas no ar na porta ${PORT} (${store.tipo})`)));
