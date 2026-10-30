@@ -268,16 +268,29 @@ app.put("/api/renovacoes/:mes", need("master"), async (req, res, next) => {
     const limpos = itens.map((i) => ({ id: txt(i.id, 60), cliente: txt(i.cliente, 100), seguradora: txt(i.seguradora, 40), produto: txt(i.produto, 20),
       ramo: txt(i.ramo, 60), venc: txt(i.venc, 10), preposto: txt(i.preposto, 40), apolice: txt(i.apolice, 40), premio: Math.max(0, +i.premio || 0) })).filter((i) => i.id && i.cliente);
     const r = (await store.estado()).renovacoes || {};
-    r[mes] = { itens: limpos, feitos: (r[mes] || {}).feitos || {}, importado: Date.now() };
+    r[mes] = { itens: limpos, feitos: (r[mes] || {}).feitos || {}, analise: (r[mes] || {}).analise || {}, importado: Date.now() };
     await store.setRenovacoes(r);
     res.json({ ok: true, n: limpos.length });
+  } catch (e) { next(e); }
+});
+// marca várias apólices "em análise" de uma vez (planilha de cruzamento com as seguradoras)
+app.put("/api/renovacoes/:mes/analise", need("master"), async (req, res, next) => {
+  try {
+    const r = (await store.estado()).renovacoes || {}, m = r[req.params.mes], itens = (req.body || {}).itens;
+    if (!m || !Array.isArray(itens) || itens.length > 2000) return res.status(400).json({ erro: "Importe primeiro a lista do mês." });
+    m.analise ??= {};
+    for (const i of itens) if (i && i.id) m.analise[txt(i.id, 60)] = txt(i.motivo || "em análise", 200);
+    await store.setRenovacoes(r);
+    res.json({ ok: true });
   } catch (e) { next(e); }
 });
 app.put("/api/renovacoes/:mes/item", need("master"), async (req, res, next) => {
   try {
     const r = (await store.estado()).renovacoes || {}, m = r[req.params.mes], id = txt((req.body || {}).id, 60);
     if (!m) return res.status(404).json({ erro: "Mês sem lista." });
-    if ((req.body || {}).feito) m.feitos[id] = Date.now(); else delete m.feitos[id];
+    const b = req.body || {};
+    if ("analise" in b) { m.analise ??= {}; if (b.analise) m.analise[id] = txt(b.analise, 200); else delete m.analise[id]; }
+    else if (b.feito) m.feitos[id] = Date.now(); else delete m.feitos[id];
     await store.setRenovacoes(r);
     res.json({ ok: true });
   } catch (e) { next(e); }

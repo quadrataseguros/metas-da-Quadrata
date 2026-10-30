@@ -353,6 +353,8 @@ table.mini{width:100%;border-collapse:collapse;font-size:14px}table.mini th{font
 .renov-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px}
 .renov-sum{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;margin-bottom:12px}.renov-sum div{display:flex;flex-direction:column;gap:2px}.renov-sum b{font-size:20px;font-weight:600}.renov-sum .okt{color:var(--good)}
 .chk.sm{border:0;padding:0;font-size:13px;margin-left:auto}
+table.rv tr.anl td{background:#fdf8ec}.tag.an{color:#8a6100;background:#fbf0d4}.renov-sum .ant{color:#8a6100}.cap.mot{display:block;max-width:340px;white-space:normal;margin-top:2px}
+.linkbtn.ok{color:var(--good)}.linkbtn.mut{color:var(--fg3);font-weight:500}.inp.sm{width:auto;padding:5px 8px;font-size:13px;margin-left:auto}
 table.rv tr.done td{color:var(--fg3)}table.rv tr.done td.strong{text-decoration:line-through}table.rv input{width:17px;height:17px;accent-color:var(--good)}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
@@ -717,31 +719,48 @@ function lerRelatorio(XLSX,buf){
 }
 function vendaRenov(it,k){const n=normNome(it.cliente).split(" ").slice(0,2).join(" ");return SALES.find(s=>s.data.startsWith(k)&&normNome(s.cliente).startsWith(n))}
 function renovHTML(){
-  const k=PLANO_K||ym(VY,VM),[y,m]=k.split("-").map(Number),nome=new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"}),L=(RENOV[k]||{}).itens||[],F=(RENOV[k]||{}).feitos||{};
-  const st=L.map(i=>{const v=vendaRenov(i,k);return {...i,venda:v,ok:!!F[i.id]||!!v}}).sort((a,b)=>a.venc.localeCompare(b.venc)||a.cliente.localeCompare(b.cliente));
-  const feitos=st.filter(i=>i.ok),tot=st.reduce((a,i)=>a+i.premio,0),totOk=feitos.reduce((a,i)=>a+i.premio,0),lista=renovPend?st.filter(i=>!i.ok):st;
+  const k=PLANO_K||ym(VY,VM),[y,m]=k.split("-").map(Number),nome=new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"}),L=(RENOV[k]||{}).itens||[],F=(RENOV[k]||{}).feitos||{},AN=(RENOV[k]||{}).analise||{};
+  const st=L.map(i=>{const v=vendaRenov(i,k);return {...i,venda:v,ok:!!F[i.id]||!!v,an:AN[i.id]}}).sort((a,b)=>a.venc.localeCompare(b.venc)||a.cliente.localeCompare(b.cliente));
+  const feitos=st.filter(i=>i.ok),tot=st.reduce((a,i)=>a+i.premio,0),totOk=feitos.reduce((a,i)=>a+i.premio,0),nAn=st.filter(i=>i.an&&!i.ok),lista=renovPend==="an"?nAn:renovPend?st.filter(i=>!i.ok):st;
   return `<div class="card-h"><h2>Renovações de ${nome}</h2><span class="badge">${L.length?`${feitos.length} de ${L.length} renovadas`:"lista não importada"}</span></div>
   <div class="renov-top"><input type="file" id="rvFile" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
    <button type="button" class="btn-g" id="rvImp">${L.length?"Importar de novo":"Importar relatório do SICS"}</button>
    <span class="cap" id="rvMsg">Use o "Produção por período" do mesmo mês do ano anterior ou a lista de renovações do SICS (Excel). O arquivo é lido aqui no navegador.</span></div>
   ${L.length?`<div class="renov-sum"><div><span class="cap">Prêmio anterior total</span><b>${R(tot)}</b></div><div><span class="cap">Já renovado</span><b class="okt">${R(totOk)}</b></div><div><span class="cap">Falta renovar</span><b>${R(tot-totOk)}</b></div>
-   <label class="chk sm"><input type="checkbox" id="rvPend" ${renovPend?"checked":""}> Mostrar só as que faltam</label></div>
-  <div class="tbl"><table class="rv"><thead><tr><th></th><th>Cliente</th><th>Seguradora</th><th>Produto</th><th>Vence</th><th>Preposto</th><th class="r">Prêmio anterior</th><th>Situação</th></tr></thead><tbody>${lista.map(i=>`<tr class="${i.ok?"done":""}">
+   <div><span class="cap">Em análise</span><b class="ant">${nAn.length} · ${R(nAn.reduce((a,i)=>a+i.premio,0))}</b></div>
+   <select id="rvPend" class="inp sm" aria-label="Filtro"><option value="">Todas</option><option value="1" ${renovPend===true?"selected":""}>Só as que faltam</option><option value="an" ${renovPend==="an"?"selected":""}>Só em análise</option></select></div>
+  <div class="tbl"><table class="rv"><thead><tr><th></th><th>Cliente</th><th>Seguradora</th><th>Produto</th><th>Vence</th><th>Preposto</th><th class="r">Prêmio anterior</th><th>Situação</th></tr></thead><tbody>${lista.map(i=>`<tr class="${i.ok?"done":i.an?"anl":""}">
    <td><input type="checkbox" data-rv="${esc(i.id)}" ${i.ok?"checked":""} ${i.venda?"disabled title='Marcada pela venda lançada'":""} aria-label="Renovada"></td>
    <td class="strong">${esc(i.cliente)}</td><td>${segNome(i.seguradora)}</td><td>${esc((prod(i.produto)||{nome:i.ramo}).nome.replace(" (sem saúde e odonto)",""))}</td>
    <td class="n">${i.venc.slice(8,10)}/${i.venc.slice(5,7)}</td><td>${esc(i.preposto||"—")}</td><td class="r n">${R2(i.premio)}</td>
-   <td>${i.venda?`<span class="tag nv">lançada ${R(i.venda.valor||i.venda.credito)} · ${esc(vend(i.venda.vendedora).nome)}</span>`:i.ok?'<span class="tag rn">marcada</span>':'<span class="cap">pendente</span>'}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+   <td>${i.venda?`<span class="tag nv">lançada ${R(i.venda.valor||i.venda.credito)} · ${esc(vend(i.venda.vendedora).nome)}</span>`:i.ok?'<span class="tag rn">marcada</span>':i.an?`<span class="tag an">em análise</span> <button type="button" class="linkbtn ok" data-rvok="${esc(i.id)}">confirmar</button><div class="cap mot">${esc(i.an)}</div>`:`<span class="cap">pendente</span> <button type="button" class="linkbtn mut" data-rvan="${esc(i.id)}">pôr em análise</button>`}</td></tr>`).join("")}</tbody></table></div>`:""}`;
 }
-document.addEventListener("click",e=>{if(e.target.closest("#rvImp"))$("rvFile").click()});
+document.addEventListener("click",async e=>{
+  if(e.target.closest("#rvImp")){$("rvFile").click();return}
+  const ok=e.target.closest("[data-rvok]"),an=e.target.closest("[data-rvan]");if(!ok&&!an)return;
+  const id=(ok||an).dataset[ok?"rvok":"rvan"],k=PLANO_K,m=RENOV[k];let val=false;
+  if(an){val=prompt("Motivo da análise (opcional):","")??null;if(val===null)return;val=val.trim()||"em análise"}
+  if(m){m.analise??={};if(val)m.analise[id]=val;else delete m.analise[id]}render();
+  try{await api("PUT","/api/renovacoes/"+k+"/item",{id,analise:val})}catch(err){toast("Não foi possível salvar: "+(err.message||err.code));await load()}
+});
 document.addEventListener("change",async e=>{
-  if(e.target.id==="rvPend"){renovPend=e.target.checked;render();return}
+  if(e.target.id==="rvPend"){const v=e.target.value;renovPend=v==="an"?"an":!!v;render();return}
   const c=e.target.closest("[data-rv]");
   if(c){const k=PLANO_K,id=c.dataset.rv,f=c.checked;const m=RENOV[k];if(m){if(f)m.feitos[id]=Date.now();else delete m.feitos[id]}render();
     try{await api("PUT","/api/renovacoes/"+k+"/item",{id,feito:f})}catch(err){toast("Não foi possível salvar: "+(err.message||err.code));await load()}return}
   if(e.target.id!=="rvFile")return;
   const f=e.target.files[0];e.target.value="";if(!f)return;const msg=$("rvMsg");msg.textContent="Lendo o relatório…";
   try{
-    const itens=lerRelatorio(await carregaXlsx(),await f.arrayBuffer());if(!itens.length)throw new Error("nenhuma apólice encontrada");
+    const XLSX=await carregaXlsx(),buf=await f.arrayBuffer(),wb0=XLSX.read(buf,{type:"array"});
+    if(wb0.SheetNames.includes("Em observação")){ // planilha de cruzamento com as seguradoras: marca "em análise"
+      const rows=XLSX.utils.sheet_to_json(wb0.Sheets["Em observação"],{header:1,raw:false,defval:""}),hi=rows.findIndex(r=>r.includes("Apólice SICS"));
+      const H=rows[hi],cA=H.indexOf("Apólice SICS"),cM=H.indexOf("Possível motivo"),k=PLANO_K,ids=new Set(((RENOV[k]||{}).itens||[]).map(i=>i.id));
+      if(!ids.size)throw new Error("importe primeiro o relatório de produção do mês");
+      const an=rows.slice(hi+1).map(r=>({id:String(r[cA]).trim().replace(/^0+/,""),motivo:String(r[cM]||"").trim()})).filter(x=>x.id&&ids.has(x.id));
+      await api("PUT","/api/renovacoes/"+k+"/analise",{itens:an});await load();renovPend="an";render();
+      toast(`${an.length} apólices marcadas em análise`);return;
+    }
+    const itens=lerRelatorio(XLSX,buf);if(!itens.length)throw new Error("nenhuma apólice encontrada");
     const por={};itens.forEach(i=>(por[i.venc.slice(0,7)]??=[]).push(i));
     // relatório do ano anterior: vencimento já cai no mês da renovação
     const ks=Object.keys(por).sort((a,b)=>por[b].length-por[a].length),k=ks[0];
