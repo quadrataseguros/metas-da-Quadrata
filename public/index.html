@@ -345,6 +345,11 @@ body.tv .sg .tr{height:clamp(10px,.9vw,18px)}
 .mod-b p,.mod-b li{font-size:14px;line-height:1.55;margin:4px 0}.mod-b ul{padding-left:18px;margin:0}.mod-b .q{border-left:2px solid var(--brand);padding-left:10px;color:var(--fg2)}
 .chk{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}.chk input{width:18px;height:18px;accent-color:var(--brand)}
 td.okc{color:var(--good);font-weight:600}
+.plano-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:28px}@media (max-width:820px){.plano-g{grid-template-columns:1fr}}
+.plano h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg3);margin:0 0 10px;font-weight:600}
+.plano .kv input{width:90px;text-align:right;font:inherit;padding:5px 8px;border:1px solid var(--line2);border-radius:var(--r)}
+.al.warn{background:#fbf5e6;border-color:#eedcb0;color:#7a5a12}
+table.mini{width:100%;border-collapse:collapse;font-size:14px}table.mini th{font-size:11px;text-transform:uppercase;color:var(--fg3);text-align:left;padding:4px 0;border-bottom:1px solid var(--line)}table.mini th.r{text-align:right}table.mini td{padding:6px 0;border-bottom:1px solid var(--line)}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -411,6 +416,7 @@ table th{font-weight:600!important;letter-spacing:.04em}
 <main id="master" hidden>
   <div id="masterLock" class="lock" hidden><b>Área do acesso master</b>Entre com a senha master para lançar o histórico, mudar regras e apagar vendas.</div>
   <div id="masterBody" hidden style="display:flex;flex-direction:column;gap:20px">
+    <section class="card plano" id="plano"></section>
     <section class="card gest" id="gestao"></section>
     <section class="card" id="capMaster"></section>
     <section class="card">
@@ -551,7 +557,7 @@ function heroHTML(C){
   <div class="card-h"><h2>${mesNome()}</h2>${isNow()?'<span class="live">ao vivo</span>':'<span class="badge">mês fechado</span>'}</div>
   <div class="nums">
     <div><span class="big-l">Produção do mês</span><b class="big money n">${R(C.tot)}</b>
-      <span class="big-s">${m>0?`meta ${R(m)} · ${Math.round(pc*100)}%`:"meta: lance o ano anterior no Master"}</span>
+      <span class="big-s">${m>0?`meta ${R(m)} · ${Math.round(pc*100)}%`:ocultoPraMim()?"metas do mês em preparação":"meta: lance o ano anterior no Master"}</span>
       <div class="track"><i style="width:${Math.min(100,pc*100)}%"></i></div></div>
     <div><span class="big-l">Pontos da equipe</span><b class="big pts n">${C.teamPts}<em>/ ${me}</em></b>
       <span class="big-s">${C.teamPts>=me?"meta da equipe batida":`faltam ${me-C.teamPts} pontos`}</span>
@@ -565,8 +571,11 @@ function ring(frac,label,val,sub){
   return `<div class="gauge"><div class="ring"><svg viewBox="0 0 100 100" role="img" aria-label="${label}: ${Math.round(frac*100)}%"><circle class="g-bg" cx="50" cy="50" r="${r}"/><circle class="g-fg ${ok?"ok":""}" cx="50" cy="50" r="${r}" stroke-dasharray="${(c*f).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 50 50)"/></svg><span>${Math.round(frac*100)}%</span></div>
   <b>${label}</b><span class="n">${val}</span><small class="${ok?"ok-t":""}">${ok?"✓ meta batida":sub}</small></div>`;
 }
+/* metas de renovações/novos: o plano do mês (Master) vale sobre o padrão das regras */
+const metasDoMes=(k=ym(VY,VM))=>({...(RULES.metas||{}),...(((RULES.metasMes||{})[k])||{})});
+const ocultoPraMim=()=>ROLE!=="master"&&(RULES.metasOcultas||[]).includes(ym(VY,VM));
 function goalsHTML(C){
-  const M=RULES.metas||{},mr=+M.renovacoes||0,mn=+M.novos||0,m=metaProd(C),d=delta(C.tot,C.prevTot);
+  const M=metasDoMes(),mr=+M.renovacoes||0,mn=+M.novos||0,m=metaProd(C),d=delta(C.tot,C.prevTot);
   return `<section class="card c5"><div class="card-h"><h2>Metas do mês</h2></div><div class="gauges">
     ${ring(mr?C.ren/mr:0,"Renovações",`${C.ren} de ${mr}`,`faltam ${Math.max(0,mr-C.ren)}`)}
     ${ring(mn?C.nov/mn:0,"Novos seguros",`${C.nov} de ${mn}`,`faltam ${Math.max(0,mn-C.nov)}`)}
@@ -641,6 +650,39 @@ function salesHTML(C,tv){
   ${L.length?`<div class="tbl"><table><thead><tr><th>Quando</th><th>Vendedora</th><th>Produto</th><th>Seguradora</th><th class="r">Valor</th><th class="r">Pontos</th>${tv?"":"<th></th>"}</tr></thead><tbody>${body}</tbody></table></div>
   ${!tv&&L.length>8?`<button class="more" data-more>${SHOWALL?"Mostrar menos":`Ver todas (${L.length})`}</button>`:""}`:`<div class="empty">Nenhuma venda neste mês ainda. Use <b>Registrar venda</b> para lançar a primeira.</div>`}</section>`;
 }
+/* ---- plano de metas do mês (Master): prévia escondida da equipe até liberar ---- */
+let planoDirty=false;
+function planoHTML(C){
+  const k=ym(VY,VM),plano=(RULES.metasMes||{})[k],M=metasDoMes(k),cr=+RULES.crescimento||0,gr=1+cr/100;
+  const atual=ym(now.getFullYear(),now.getMonth()),lib=plano?plano.liberado!==false:k<=atual;
+  const bk=ym(VY-1,VM),da=new Date(VY-1,VM-1,1),bkAnt=ym(da.getFullYear(),da.getMonth());
+  const temBase=!!HIST[bk],fonte=temBase?bk:(HIST[bkAnt]?bkAnt:null),val=fonte?(HIST[fonte].valores||{}):{};
+  const nomeMes=k2=>{const [y,m]=k2.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"short",year:"numeric"}).replace(". de ","/").replace(" de ","/")};
+  const soma=o=>Object.values(o||{}).reduce((a,x)=>a+(+x||0),0),base=Object.values(val).reduce((a,o)=>a+soma(o),0);
+  const grupos=[];SEGS.forEach(sg=>{const g=grupoDe(sg)||[sg];if(grupos.some(x=>x.k===g[0]))return;const b=g.reduce((a,m)=>a+soma(val[m]),0);if(b>0)grupos.push({k:g[0],nome:g.map(segNome).join(" + "),b})});
+  const prods=RULES.produtos.filter(p=>!p.porto).map(p=>({nome:p.nome.replace(" (sem saúde e odonto)",""),b:Object.values(val).reduce((a,o)=>a+(+(o||{})[p.id]||0),0)})).filter(p=>p.b>0);
+  const lin=l=>l.map(x=>`<tr><td>${esc(x.nome)}</td><td class="r n">${R(x.b)}</td><td class="r n strong">${R(x.b*gr)}</td></tr>`).join("");
+  return `<div class="card-h"><h2>Metas de ${mesNome().toLowerCase()}</h2><span class="badge">${lib?"liberadas para a equipe":"só você vê"}</span></div>
+  ${fonte?(temBase?"":`<div class="al warn">Estimativa: ainda faltam as vendas de ${nomeMes(bk)} (ano anterior). Usei ${nomeMes(fonte)} como base até você lançar ${nomeMes(bk)} na tabela "Vendas do ano anterior" abaixo.</div>`):`<div class="al warn">Falta lançar as vendas de ${nomeMes(bk)} na tabela "Vendas do ano anterior" abaixo para calcular as metas de produção.</div>`}
+  <div class="plano-g">
+   <div><h3>Produção</h3><div class="kv"><span>Base ${fonte?nomeMes(fonte):"—"}</span><b>${R(base)}</b></div><div class="kv"><span>Meta (+${cr}%)</span><b>${R(base*gr)}</b></div>
+    <h3 style="margin-top:16px">Quantidade</h3>
+    <label class="kv"><span>Renovações</span><input id="plR" type="number" min="0" value="${+M.renovacoes||0}"></label>
+    <label class="kv"><span>Novos seguros</span><input id="plN" type="number" min="0" value="${+M.novos||0}"></label>
+    <label class="chk"><input type="checkbox" id="plL" ${lib?"checked":""}> Liberar estas metas para as vendedoras e a TV</label>
+    <div class="row-act"><span class="cap" id="plMsg"></span><button class="btn" id="plSave" type="button">Salvar metas do mês</button></div></div>
+   <div>${grupos.length?`<h3>Por seguradora</h3><table class="mini"><thead><tr><th>Grupo</th><th class="r">Base</th><th class="r">Meta</th></tr></thead><tbody>${lin(grupos)}</tbody></table>`:""}
+    ${prods.length?`<h3 style="margin-top:16px">Por produto</h3><table class="mini"><thead><tr><th>Produto</th><th class="r">Base</th><th class="r">Meta</th></tr></thead><tbody>${lin(prods)}</tbody></table>`:""}</div>
+  </div>`;
+}
+document.addEventListener("input",e=>{if(e.target.closest("#plano"))planoDirty=true});
+document.addEventListener("click",async e=>{if(!e.target.closest("#plSave"))return;
+  const k=ym(VY,VM),r=JSON.parse(JSON.stringify(RULES));delete r.metasOcultas;
+  (r.metasMes??={})[k]={renovacoes:Math.max(0,+$("plR").value||0),novos:Math.max(0,+$("plN").value||0),liberado:$("plL").checked};
+  $("plSave").disabled=true;
+  try{await api("PUT","/api/regras",r);planoDirty=false;toast($("plL").checked?"Metas salvas e liberadas para a equipe":"Metas salvas: só você vê");await load()}
+  catch(err){$("plMsg").textContent="Não foi possível salvar: "+(err.message||err.code);$("plSave").disabled=false}});
+
 /* ---- ritmo diário, foco e alertas de gestão ---- */
 const iso=(y,m,d)=>y+"-"+pad(m+1)+"-"+pad(d);
 const util=(y,m,d)=>{const w=new Date(y,m,d).getDay();return w>0&&w<6};
@@ -706,6 +748,8 @@ function gestaoHTML(C){
 }
 function dashHTML(C,tv){
   const cr=+RULES.crescimento||0;
+  if(ocultoPraMim())return heroHTML(C)+`<section class="card c5"><div class="card-h"><h2>Metas do mês</h2></div><div class="empty">As metas de ${mesNome().toLowerCase()} estão em preparação e aparecem aqui assim que forem liberadas. Enquanto isso, as vendas já contam pontos normalmente.</div></section>`
+    +credHTML(C)+podiumHTML(C)+chartHTML(C)+salesHTML(C,tv);
   return heroHTML(C)+goalsHTML(C)+focoHTML(C,tv)+premioHTML(C)+credHTML(C)+podiumHTML(C)+chartHTML(C)
     +barsHTML("Metas por seguradora",`ano anterior + ${cr}%`,[...C.segs].sort((a,b)=>Math.max(b.meta,b.cur)-Math.max(a.meta,a.cur)))
     +barsHTML("Metas por produto",`ano anterior + ${cr}%`,C.prods.map(p=>({...p,nome:p.nome.replace(" (sem saúde e odonto)","")})))
@@ -788,7 +832,7 @@ function renderMaster(C){
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
-  $("gestao").innerHTML=gestaoHTML(C);$("capMaster").innerHTML=capMasterHTML();
+  if(!planoDirty)$("plano").innerHTML=planoHTML(C);$("gestao").innerHTML=gestaoHTML(C);$("capMaster").innerHTML=capMasterHTML();
   $("mSales").innerHTML=salesTable(C.list,!isDemo(),true);
   const tc=C.list.reduce((a,s)=>a+(+s.comissao||0),0),tp=C.list.reduce((a,s)=>a+(+s.valor||0),0);
   $("mCom")?.remove();
@@ -813,7 +857,7 @@ $("histSave").onclick=async()=>{
 $("rules").addEventListener("input",()=>{rulesDirty=true;$("rulesMsg").textContent="Alterações não salvas."});
 $("rulesSave").onclick=async()=>{
   if(!db)return;
-  const r=JSON.parse(JSON.stringify(RULES));
+  const r=JSON.parse(JSON.stringify(RULES));delete r.metasOcultas;
   document.querySelectorAll("#rules input[data-k=pts]").forEach(i=>{const p=r.produtos.find(x=>x.id===i.dataset.id);if(p)p.pts=Math.max(0,+i.value||0)});
   document.querySelectorAll("#rules input[data-k=nivel]").forEach(i=>{r.niveis[+i.dataset.i].pts=Math.max(0,+i.value||0)});
   document.querySelectorAll("#rules input[data-k=premio]").forEach(i=>{r.premios[i.dataset.id]=i.value.trim()});
@@ -1029,8 +1073,8 @@ async function save(){
 /* ---- navegação ---- */
 function route(){const h=(location.hash||"").replace("#","");VIEW=["monitor","master","vendedoras","capacitacao"].includes(h)?h:"vendedoras";if(VIEW==="monitor"){VY=now.getFullYear();VM=now.getMonth();wake()}render()}
 addEventListener("hashchange",route);
-$("mPrev").onclick=()=>{VM--;if(VM<0){VM=11;VY--}histDirty=false;render()};
-$("mNext").onclick=()=>{VM++;if(VM>11){VM=0;VY++}histDirty=false;render()};
+$("mPrev").onclick=()=>{VM--;if(VM<0){VM=11;VY--}histDirty=false;planoDirty=false;render()};
+$("mNext").onclick=()=>{VM++;if(VM>11){VM=0;VY++}histDirty=false;planoDirty=false;render()};
 let tt;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3200)}
 
 /* ---- monitor: relógio, tela acesa, aviso de venda nova ---- */

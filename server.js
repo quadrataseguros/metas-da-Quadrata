@@ -128,6 +128,14 @@ function premiacoes(e) {
   }
   return out;
 }
+// Mês oculto: o master marcou "não liberado", ou é um mês futuro ainda sem decisão.
+// Olha os meses do histórico (ano anterior + 1) e os meses com plano salvo.
+function mesesOcultos(e) {
+  const mm = (e.regras || {}).metasMes || {}, d = new Date(), atual = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  const prox = [1, 2, 3].map((n) => { const x = new Date(d.getFullYear(), d.getMonth() + n, 1); return x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0"); });
+  const meses = new Set([...Object.keys(mm), ...prox, ...Object.keys(e.historico || {}).map((k) => (+k.slice(0, 4) + 1) + k.slice(4))]);
+  return [...meses].filter((k) => /^\d{4}-\d{2}$/.test(k) && (mm[k] ? mm[k].liberado === false : k > atual));
+}
 const READ = need("master", "equipe", "monitor");
 app.get("/api/estado", READ, async (req, res, next) => {
   try {
@@ -136,7 +144,13 @@ app.get("/api/estado", READ, async (req, res, next) => {
     // capacitação: o master vê todas; cada vendedora só a própria; a TV não vê
     const cap = e.capacitacao || {};
     const capacitacao = req.role === "master" ? cap : req.role === "equipe" ? { [req.vendedora]: cap[req.vendedora] || {} } : {};
-    res.json(req.role === "master" ? { ...e, capacitacao, premiacao } : { ...e, vendas: (e.vendas || []).map(publica), capacitacao, premiacao });
+    if (req.role === "master") return res.json({ ...e, capacitacao, premiacao });
+    // metas de meses ainda não liberados ficam só com o master: some o histórico-base, a premiação e o plano do mês
+    const ocultos = mesesOcultos(e);
+    const regras = { ...(e.regras || {}), metasMes: Object.fromEntries(Object.entries((e.regras || {}).metasMes || {}).filter(([k]) => !ocultos.includes(k))), metasOcultas: ocultos };
+    const historico = { ...(e.historico || {}) };
+    for (const k of ocultos) { delete historico[(+k.slice(0, 4) - 1) + k.slice(4)]; delete premiacao[k]; }
+    res.json({ ...e, regras, historico, vendas: (e.vendas || []).map(publica), capacitacao, premiacao });
   } catch (e) { next(e); }
 });
 
