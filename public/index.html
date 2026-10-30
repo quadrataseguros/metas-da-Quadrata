@@ -699,18 +699,23 @@ const normNome=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").
 const segDe=t=>{const u=normNome(t);return u.startsWith("PORTO")?"PORTO":u.startsWith("BRADESCO")?"BRADESCO":u.startsWith("ZURICH")?"ZURICH":u.startsWith("ITAU")?"ITAÚ":u.startsWith("YEL")?"YELLUM":SEGS.find(x=>normNome(x)===u)||"OUTRA"};
 const prodDe=t=>{const u=normNome(t);return /AUTO/.test(u)?"auto":/RESID/.test(u)?"resid":/VIDA/.test(u)?"vida":/EMPRES/.test(u)?"empre":"outros"};
 function lerRelatorio(XLSX,buf){
-  const wb=XLSX.read(buf,{type:"array",cellDates:false}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
-  const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==="Cliente"));if(hi<0)throw new Error("não achei a coluna Cliente");
-  const H=rows[hi].map(c=>String(c).trim()),col=(...n)=>{for(const x of n){const i=H.indexOf(x);if(i>-1)return i}return -1};
-  const cC=col("Cliente"),cS=col("Seguradora"),cR=col("Ramo"),cA=col("Apólice"),cP=col("Proposta"),cE=col("Endosso"),cL=col("Prêmio liquido","Prêmio líquido"),cT=col("Prêmio total","Prêmio Total"),cV=col("Final vigência","Término vigência"),cPr=col("Preposto");
-  if(cV<0)throw new Error("não achei a coluna de fim de vigência");
+  // acha a planilha e a linha de cabeçalho com "Cliente"; nomes de coluna comparados sem acento/maiúsculas
+  const wb=XLSX.read(buf,{type:"array",cellDates:false}),nk=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+  let rows=null,hi=-1;
+  for(const sn of wb.SheetNames){const rr=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:""});const i=rr.findIndex(r=>r.some(c=>/^(cliente|segurado|nome do segurado|nome cliente)$/.test(nk(c))));if(i>-1){rows=rr;hi=i;break}}
+  if(!rows)throw new Error("não achei a coluna Cliente. Use o Excel de produção do SICS");
+  const H=rows[hi].map(nk),col=(...t)=>{for(const x of t){const i=H.findIndex(h=>x instanceof RegExp?x.test(h):h===x);if(i>-1)return i}return -1};
+  const cC=col(/^(cliente|segurado|nome do segurado|nome cliente)$/),cS=col("seguradora"),cR=col("ramo",/produto/),cA=col("apolice",/^apolice$/,/n.? apolice$/),cP=col("proposta"),cE=col("endosso");
+  const cL=col(/premio liquido/,/valor liquido/),cT=col(/premio total/),cV=col(/(final|fim|termino) (de )?vigencia/,/vigencia (final|fim)/),cI=col(/inicio (de )?vigencia/,/vigencia inicial/),cPr=col("preposto");
+  if(cV<0&&cI<0)throw new Error("não achei as colunas de vigência (colunas lidas: "+rows[hi].filter(Boolean).slice(0,12).join(", ")+")");
   const vis=new Set(),out=[];
   for(const r of rows.slice(hi+1)){
     const cli=String(r[cC]||"").trim();if(!cli)continue;
     if(cE>-1&&+r[cE])continue; // endosso não é apólice
     const prop=String(r[cP]??"").trim(),ap=String(r[cA]??"").trim().replace(/^0+/,""),key=prop||ap;if(vis.has(key))continue;vis.add(key);
-    let v=String(r[cV]).match(/(\d{2})\/(\d{2})\/(\d{4})/);
-    if(!v&&typeof r[cV]==="number"){const d=XLSX.SSF.parse_date_code(r[cV]);if(d)v=[0,pad(d.d),pad(d.m),String(d.y)]}
+    const dt=c=>{if(c<0)return null;const x=r[c];let m=String(x).match(/(\d{2})\/(\d{2})\/(\d{4})/);if(m)return m;m=String(x).match(/(\d{4})-(\d{2})-(\d{2})/);if(m)return [0,m[3],m[2],m[1]];
+      if(typeof x==="number"){const d=XLSX.SSF.parse_date_code(x);if(d)return [0,pad(d.d),pad(d.m),String(d.y)]}return null};
+    let v=dt(cV);if(!v){const i=dt(cI);if(i)v=[0,i[1],i[2],String(+i[3]+1)]} // sem fim de vigência: início + 1 ano
     if(!v)continue;
     const pid=prodDe(r[cR]),liq=cL>-1?+r[cL]||0:(+r[cT]||0)/(pid==="vida"?1.0038:1.0738);
     out.push({id:(ap||prop).slice(0,60),cliente:cli.replace(/^\d+\s+/,""),seguradora:segDe(r[cS]),produto:pid,ramo:String(r[cR]||""),venc:v[3]+"-"+v[2]+"-"+v[1],preposto:String(cPr>-1?r[cPr]:"").trim(),apolice:ap,premio:Math.round(liq*100)/100});
