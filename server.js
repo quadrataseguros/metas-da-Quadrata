@@ -146,12 +146,13 @@ app.get("/api/estado", READ, async (req, res, next) => {
     const cap = e.capacitacao || {};
     const capacitacao = req.role === "master" ? cap : req.role === "equipe" ? { [req.vendedora]: cap[req.vendedora] || {} } : {};
     if (req.role === "master") return res.json({ ...e, capacitacao, premiacao });
+    const { renovacoes: _r, ...pub } = e; // lista de clientes a renovar: só o master
     // metas de meses ainda não liberados ficam só com o master: some o histórico-base, a premiação e o plano do mês
     const ocultos = mesesOcultos(e);
     const regras = { ...(e.regras || {}), metasMes: Object.fromEntries(Object.entries((e.regras || {}).metasMes || {}).filter(([k]) => !ocultos.includes(k))), metasOcultas: ocultos };
     const historico = { ...(e.historico || {}) };
     for (const k of ocultos) { delete historico[(+k.slice(0, 4) - 1) + k.slice(4)]; delete premiacao[k]; }
-    res.json({ ...e, regras, historico, vendas: (e.vendas || []).map(publica), capacitacao, premiacao });
+    res.json({ ...pub, regras, historico, vendas: (e.vendas || []).map(publica), capacitacao, premiacao });
   } catch (e) { next(e); }
 });
 
@@ -254,6 +255,30 @@ app.put("/api/capacitacao", need("equipe"), async (req, res, next) => {
     const item = String((req.body || {}).item || "");
     if (!/^[a-z0-9_-]{1,40}$/.test(item)) return res.status(400).json({ erro: "Item inválido." });
     await store.setCap(req.vendedora, item, (req.body || {}).feito ? Date.now() : 0);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Checklist de renovações do mês (só master): a lista vem do relatório do SICS importado no navegador.
+const txt = (v, n) => String(v ?? "").slice(0, n);
+app.put("/api/renovacoes/:mes", need("master"), async (req, res, next) => {
+  try {
+    const mes = req.params.mes, itens = (req.body || {}).itens;
+    if (!/^\d{4}-\d{2}$/.test(mes) || !Array.isArray(itens) || itens.length > 2000) return res.status(400).json({ erro: "Lista inválida." });
+    const limpos = itens.map((i) => ({ id: txt(i.id, 60), cliente: txt(i.cliente, 100), seguradora: txt(i.seguradora, 40), produto: txt(i.produto, 20),
+      ramo: txt(i.ramo, 60), venc: txt(i.venc, 10), preposto: txt(i.preposto, 40), apolice: txt(i.apolice, 40), premio: Math.max(0, +i.premio || 0) })).filter((i) => i.id && i.cliente);
+    const r = (await store.estado()).renovacoes || {};
+    r[mes] = { itens: limpos, feitos: (r[mes] || {}).feitos || {}, importado: Date.now() };
+    await store.setRenovacoes(r);
+    res.json({ ok: true, n: limpos.length });
+  } catch (e) { next(e); }
+});
+app.put("/api/renovacoes/:mes/item", need("master"), async (req, res, next) => {
+  try {
+    const r = (await store.estado()).renovacoes || {}, m = r[req.params.mes], id = txt((req.body || {}).id, 60);
+    if (!m) return res.status(404).json({ erro: "Mês sem lista." });
+    if ((req.body || {}).feito) m.feitos[id] = Date.now(); else delete m.feitos[id];
+    await store.setRenovacoes(r);
     res.json({ ok: true });
   } catch (e) { next(e); }
 });

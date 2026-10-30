@@ -350,6 +350,10 @@ td.okc{color:var(--good);font-weight:600}
 .plano .kv input{width:90px;text-align:right;font:inherit;padding:5px 8px;border:1px solid var(--line2);border-radius:var(--r)}
 .al.warn{background:#fbf5e6;border-color:#eedcb0;color:#7a5a12}
 table.mini{width:100%;border-collapse:collapse;font-size:14px}table.mini th{font-size:11px;text-transform:uppercase;color:var(--fg3);text-align:left;padding:4px 0;border-bottom:1px solid var(--line)}table.mini th.r{text-align:right}table.mini td{padding:6px 0;border-bottom:1px solid var(--line)}
+.renov-top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-bottom:14px}
+.renov-sum{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-end;margin-bottom:12px}.renov-sum div{display:flex;flex-direction:column;gap:2px}.renov-sum b{font-size:20px;font-weight:600}.renov-sum .okt{color:var(--good)}
+.chk.sm{border:0;padding:0;font-size:13px;margin-left:auto}
+table.rv tr.done td{color:var(--fg3)}table.rv tr.done td.strong{text-decoration:line-through}table.rv input{width:17px;height:17px;accent-color:var(--good)}
 /* ===== Tema claro e sóbrio: sem brilhos, sem degradês, cantos retos, linhas finas ===== */
 body{background:var(--bg)!important;font-feature-settings:"tnum" 1}
 header{background:#fff!important;backdrop-filter:none!important;border-bottom:1px solid var(--line)!important}
@@ -417,6 +421,7 @@ table th{font-weight:600!important;letter-spacing:.04em}
   <div id="masterLock" class="lock" hidden><b>Área do acesso master</b>Entre com a senha master para lançar o histórico, mudar regras e apagar vendas.</div>
   <div id="masterBody" hidden style="display:flex;flex-direction:column;gap:20px">
     <section class="card plano" id="plano"></section>
+    <section class="card renov" id="renov"></section>
     <section class="card gest" id="gestao"></section>
     <section class="card" id="capMaster"></section>
     <section class="card">
@@ -685,6 +690,66 @@ document.addEventListener("click",async e=>{if(!e.target.closest("#plSave"))retu
   try{await api("PUT","/api/regras",r);planoDirty=false;toast($("plL").checked?"Metas salvas e liberadas para a equipe":"Metas salvas: só você vê");await load()}
   catch(err){$("plMsg").textContent="Não foi possível salvar: "+(err.message||err.code);$("plSave").disabled=false}});
 
+/* ---- checklist de renovações do mês (só master): lista importada do relatório do SICS ---- */
+let RENOV={},renovPend=false,xlsxP=null;
+const carregaXlsx=()=>xlsxP||(xlsxP=new Promise((ok,er)=>{const sc=document.createElement("script");sc.src="/vendor/xlsx.full.min.js";sc.onload=()=>ok(window.XLSX);sc.onerror=()=>{xlsxP=null;er(new Error("não carregou o leitor de Excel"))};document.head.appendChild(sc)}));
+const normNome=t=>String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/^\d+\s+/,"").replace(/[^A-Z ]/g," ").replace(/\s+/g," ").trim();
+const segDe=t=>{const u=normNome(t);return u.startsWith("PORTO")?"PORTO":u.startsWith("BRADESCO")?"BRADESCO":u.startsWith("ZURICH")?"ZURICH":u.startsWith("ITAU")?"ITAÚ":u.startsWith("YEL")?"YELLUM":SEGS.find(x=>normNome(x)===u)||"OUTRA"};
+const prodDe=t=>{const u=normNome(t);return /AUTO/.test(u)?"auto":/RESID/.test(u)?"resid":/VIDA/.test(u)?"vida":/EMPRES/.test(u)?"empre":"outros"};
+function lerRelatorio(XLSX,buf){
+  const wb=XLSX.read(buf,{type:"array",cellDates:false}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:""});
+  const hi=rows.findIndex(r=>r.some(c=>String(c).trim()==="Cliente"));if(hi<0)throw new Error("não achei a coluna Cliente");
+  const H=rows[hi].map(c=>String(c).trim()),col=(...n)=>{for(const x of n){const i=H.indexOf(x);if(i>-1)return i}return -1};
+  const cC=col("Cliente"),cS=col("Seguradora"),cR=col("Ramo"),cA=col("Apólice"),cP=col("Proposta"),cE=col("Endosso"),cL=col("Prêmio liquido","Prêmio líquido"),cT=col("Prêmio total","Prêmio Total"),cV=col("Final vigência","Término vigência"),cPr=col("Preposto");
+  if(cV<0)throw new Error("não achei a coluna de fim de vigência");
+  const vis=new Set(),out=[];
+  for(const r of rows.slice(hi+1)){
+    const cli=String(r[cC]||"").trim();if(!cli)continue;
+    if(cE>-1&&+r[cE])continue; // endosso não é apólice
+    const prop=String(r[cP]??"").trim(),ap=String(r[cA]??"").trim().replace(/^0+/,""),key=prop||ap;if(vis.has(key))continue;vis.add(key);
+    let v=String(r[cV]).match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    if(!v&&typeof r[cV]==="number"){const d=XLSX.SSF.parse_date_code(r[cV]);if(d)v=[0,pad(d.d),pad(d.m),String(d.y)]}
+    if(!v)continue;
+    const pid=prodDe(r[cR]),liq=cL>-1?+r[cL]||0:(+r[cT]||0)/(pid==="vida"?1.0038:1.0738);
+    out.push({id:(ap||prop).slice(0,60),cliente:cli.replace(/^\d+\s+/,""),seguradora:segDe(r[cS]),produto:pid,ramo:String(r[cR]||""),venc:v[3]+"-"+v[2]+"-"+v[1],preposto:String(cPr>-1?r[cPr]:"").trim(),apolice:ap,premio:Math.round(liq*100)/100});
+  }
+  return out;
+}
+function vendaRenov(it,k){const n=normNome(it.cliente).split(" ").slice(0,2).join(" ");return SALES.find(s=>s.data.startsWith(k)&&normNome(s.cliente).startsWith(n))}
+function renovHTML(){
+  const k=PLANO_K||ym(VY,VM),[y,m]=k.split("-").map(Number),nome=new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"long",year:"numeric"}),L=(RENOV[k]||{}).itens||[],F=(RENOV[k]||{}).feitos||{};
+  const st=L.map(i=>{const v=vendaRenov(i,k);return {...i,venda:v,ok:!!F[i.id]||!!v}}).sort((a,b)=>a.venc.localeCompare(b.venc)||a.cliente.localeCompare(b.cliente));
+  const feitos=st.filter(i=>i.ok),tot=st.reduce((a,i)=>a+i.premio,0),totOk=feitos.reduce((a,i)=>a+i.premio,0),lista=renovPend?st.filter(i=>!i.ok):st;
+  return `<div class="card-h"><h2>Renovações de ${nome}</h2><span class="badge">${L.length?`${feitos.length} de ${L.length} renovadas`:"lista não importada"}</span></div>
+  <div class="renov-top"><input type="file" id="rvFile" accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+   <button type="button" class="btn-g" id="rvImp">${L.length?"Importar de novo":"Importar relatório do SICS"}</button>
+   <span class="cap" id="rvMsg">Use o "Produção por período" do mesmo mês do ano anterior ou a lista de renovações do SICS (Excel). O arquivo é lido aqui no navegador.</span></div>
+  ${L.length?`<div class="renov-sum"><div><span class="cap">Prêmio anterior total</span><b>${R(tot)}</b></div><div><span class="cap">Já renovado</span><b class="okt">${R(totOk)}</b></div><div><span class="cap">Falta renovar</span><b>${R(tot-totOk)}</b></div>
+   <label class="chk sm"><input type="checkbox" id="rvPend" ${renovPend?"checked":""}> Mostrar só as que faltam</label></div>
+  <div class="tbl"><table class="rv"><thead><tr><th></th><th>Cliente</th><th>Seguradora</th><th>Produto</th><th>Vence</th><th>Preposto</th><th class="r">Prêmio anterior</th><th>Situação</th></tr></thead><tbody>${lista.map(i=>`<tr class="${i.ok?"done":""}">
+   <td><input type="checkbox" data-rv="${esc(i.id)}" ${i.ok?"checked":""} ${i.venda?"disabled title='Marcada pela venda lançada'":""} aria-label="Renovada"></td>
+   <td class="strong">${esc(i.cliente)}</td><td>${segNome(i.seguradora)}</td><td>${esc((prod(i.produto)||{nome:i.ramo}).nome.replace(" (sem saúde e odonto)",""))}</td>
+   <td class="n">${i.venc.slice(8,10)}/${i.venc.slice(5,7)}</td><td>${esc(i.preposto||"—")}</td><td class="r n">${R2(i.premio)}</td>
+   <td>${i.venda?`<span class="tag nv">lançada ${R(i.venda.valor||i.venda.credito)} · ${esc(vend(i.venda.vendedora).nome)}</span>`:i.ok?'<span class="tag rn">marcada</span>':'<span class="cap">pendente</span>'}</td></tr>`).join("")}</tbody></table></div>`:""}`;
+}
+document.addEventListener("click",e=>{if(e.target.closest("#rvImp"))$("rvFile").click()});
+document.addEventListener("change",async e=>{
+  if(e.target.id==="rvPend"){renovPend=e.target.checked;render();return}
+  const c=e.target.closest("[data-rv]");
+  if(c){const k=PLANO_K,id=c.dataset.rv,f=c.checked;const m=RENOV[k];if(m){if(f)m.feitos[id]=Date.now();else delete m.feitos[id]}render();
+    try{await api("PUT","/api/renovacoes/"+k+"/item",{id,feito:f})}catch(err){toast("Não foi possível salvar: "+(err.message||err.code));await load()}return}
+  if(e.target.id!=="rvFile")return;
+  const f=e.target.files[0];e.target.value="";if(!f)return;const msg=$("rvMsg");msg.textContent="Lendo o relatório…";
+  try{
+    const itens=lerRelatorio(await carregaXlsx(),await f.arrayBuffer());if(!itens.length)throw new Error("nenhuma apólice encontrada");
+    const por={};itens.forEach(i=>(por[i.venc.slice(0,7)]??=[]).push(i));
+    // relatório do ano anterior: vencimento já cai no mês da renovação
+    const ks=Object.keys(por).sort((a,b)=>por[b].length-por[a].length),k=ks[0];
+    await api("PUT","/api/renovacoes/"+k,{itens:por[k]});await load();
+    toast(`${por[k].length} apólices importadas para ${k.split("-").reverse().join("/")}`+(ks.length>1?` (ignorei ${itens.length-por[k].length} de outros meses)`:""));
+  }catch(err){msg.textContent="Não consegui importar: "+(err.message||err)}
+});
+
 /* ---- ritmo diário, foco e alertas de gestão ---- */
 const iso=(y,m,d)=>y+"-"+pad(m+1)+"-"+pad(d);
 const util=(y,m,d)=>{const w=new Date(y,m,d).getDay();return w>0&&w<6};
@@ -834,7 +899,7 @@ function renderMaster(C){
       <label for="rCr">Crescimento sobre ano anterior (%)<input id="rCr" type="number" min="0" value="${RULES.crescimento}"></label></div>
     <div><h3>Premiação</h3>${["Bronze","Prata","Ouro","Diamante","equipe"].map(k=>`<label for="rpz_${k}" style="flex-direction:column;align-items:stretch;gap:4px">${k==="equipe"?"Prêmio da equipe":k}<input class="wide" id="rpz_${k}" data-k="premio" data-id="${k}" type="text" maxlength="60" value="${esc(RULES.premios[k]||"")}" placeholder="a definir"></label>`).join("")}</div>`;
   }
-  if(!planoDirty)$("plano").innerHTML=planoHTML(C);$("gestao").innerHTML=gestaoHTML(C);$("capMaster").innerHTML=capMasterHTML();
+  if(!planoDirty)$("plano").innerHTML=planoHTML(C);$("renov").innerHTML=renovHTML();$("gestao").innerHTML=gestaoHTML(C);$("capMaster").innerHTML=capMasterHTML();
   $("mSales").innerHTML=salesTable(C.list,!isDemo(),true);
   const tc=C.list.reduce((a,s)=>a+(+s.comissao||0),0),tp=C.list.reduce((a,s)=>a+(+s.valor||0),0);
   $("mCom")?.remove();
@@ -1109,7 +1174,7 @@ const API={
 };
 async function load(){
   const d=await api("GET","/api/estado");
-  SALES=d.vendas||[];PREM=d.premiacao||{};CAP=d.capacitacao||{};HIST=d.historico||{};
+  SALES=d.vendas||[];PREM=d.premiacao||{};CAP=d.capacitacao||{};RENOV=d.renovacoes||{};HIST=d.historico||{};
   RULES=d.regras?{...DEFAULT_RULES,...d.regras,premios:{...DEFAULT_RULES.premios,...(d.regras.premios||{})}}:DEFAULT_RULES;
   gotSales=gotHist=true;render();
 }

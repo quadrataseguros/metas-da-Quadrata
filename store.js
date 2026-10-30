@@ -33,7 +33,7 @@ if (url) {
                 tipo, cliente, percentual::float AS percentual, comissao::float AS comissao, credito::float AS credito
            FROM vendas WHERE data >= (current_date - interval '400 days') ORDER BY data DESC, ts DESC`),
         q(`SELECT chave, valores FROM historico`),
-        q(`SELECT id, dados FROM config WHERE id IN ('regras','capacitacao')`),
+        q(`SELECT id, dados FROM config WHERE id IN ('regras','capacitacao','renovacoes')`),
       ]);
       const cfg = Object.fromEntries(c.rows.map((r) => [r.id, r.dados]));
       const ts = (r) => ({ ...r, ts: Number(r.ts) });
@@ -42,6 +42,7 @@ if (url) {
         historico: Object.fromEntries(h.rows.map((r) => [r.chave, { valores: r.valores }])),
         regras: cfg.regras || null,
         capacitacao: cfg.capacitacao || {},
+        renovacoes: cfg.renovacoes || {},
       };
     },
     async addVenda(v) {
@@ -63,6 +64,7 @@ if (url) {
       `INSERT INTO historico (chave, valores) VALUES ($1, $2) ON CONFLICT (chave) DO UPDATE SET valores = $2, atualizado = now()`,
       [chave, JSON.stringify(valores)]),
     setRegras: (r) => q(`INSERT INTO config (id, dados) VALUES ('regras', $1) ON CONFLICT (id) DO UPDATE SET dados = $1`, [JSON.stringify(r)]),
+    setRenovacoes: (dados) => q(`INSERT INTO config (id, dados) VALUES ('renovacoes', $1) ON CONFLICT (id) DO UPDATE SET dados = $1`, [JSON.stringify(dados)]),
     // marca/desmarca um item de capacitação da vendedora (atualização atômica no JSONB)
     setCap: (vend, item, valor) => valor
       ? q(`INSERT INTO config (id, dados) VALUES ('capacitacao', jsonb_build_object($1::text, jsonb_build_object($2::text, $3::bigint)))
@@ -71,7 +73,7 @@ if (url) {
   };
 } else {
   const file = process.env.DATA_FILE || path.join(__dirname, "dados-local.json");
-  let db = { vendas: [], historico: {}, regras: null, capacitacao: {} };
+  let db = { vendas: [], historico: {}, regras: null, capacitacao: {}, renovacoes: {} };
   const save = () => fs.writeFileSync(file, JSON.stringify(db, null, 2));
   module.exports = {
     tipo: "arquivo local " + file,
@@ -84,6 +86,7 @@ if (url) {
     async updVenda(v) { db.vendas = db.vendas.map((x) => (x.id === v.id ? v : x)); save(); },
     async setHistorico(chave, valores) { db.historico[chave] = { valores }; save(); },
     async setRegras(r) { db.regras = r; save(); },
+    async setRenovacoes(d) { db.renovacoes = d; save(); },
     async setCap(vend, item, valor) { db.capacitacao ??= {}; const m = (db.capacitacao[vend] ??= {}); if (valor) m[item] = valor; else delete m[item]; save(); },
   };
 }
