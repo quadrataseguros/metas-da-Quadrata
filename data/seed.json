@@ -38,5 +38,15 @@
   "2026-11": {
    "liberado": false
   }
- }
+ },
+ "ajustes": [
+  {
+   "_nota": "Out/2025: residencial do Edenilson Pereira de Oliveira (Porto, R$ 735,79) estava contada duas vezes. Só troca se o valor ainda for o antigo.",
+   "chave": "2025-10",
+   "seguradora": "PORTO",
+   "produto": "resid",
+   "de": 1763.83,
+   "para": 1028.04
+  }
+ ]
 }

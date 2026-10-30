@@ -301,6 +301,13 @@ async function aplicaSeed() {
   const seed = JSON.parse(fs.readFileSync(f, "utf8")), e = await store.estado();
   for (const [k, valores] of Object.entries(seed.historico || {}))
     if (!(e.historico || {})[k]) { await store.setHistorico(k, valores); console.log("seed: histórico " + k); }
+  for (const a of seed.ajustes || []) {
+    const v = ((e.historico || {})[a.chave] || {}).valores;
+    if (v && v[a.seguradora] && Math.abs((+v[a.seguradora][a.produto] || 0) - a.de) < 0.01) {
+      await store.setHistorico(a.chave, { ...v, [a.seguradora]: { ...v[a.seguradora], [a.produto]: a.para } });
+      console.log(`seed: ajuste ${a.chave} ${a.seguradora} ${a.produto} ${a.de} -> ${a.para}`);
+    }
+  }
   const mm = (e.regras || {}).metasMes || {}, novos = Object.entries(seed.metasMes || {}).filter(([k]) => !mm[k]);
   if (novos.length) { await store.setRegras({ ...(e.regras || {}), metasMes: { ...mm, ...Object.fromEntries(novos) } }); console.log("seed: metas " + novos.map(([k]) => k)); }
 }
