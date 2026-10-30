@@ -651,18 +651,20 @@ function salesHTML(C,tv){
   ${!tv&&L.length>8?`<button class="more" data-more>${SHOWALL?"Mostrar menos":`Ver todas (${L.length})`}</button>`:""}`:`<div class="empty">Nenhuma venda neste mês ainda. Use <b>Registrar venda</b> para lançar a primeira.</div>`}</section>`;
 }
 /* ---- plano de metas do mês (Master): prévia escondida da equipe até liberar ---- */
-let planoDirty=false;
+let planoDirty=false,PLANO_K=null;
 function planoHTML(C){
-  const k=ym(VY,VM),plano=(RULES.metasMes||{})[k],M=metasDoMes(k),cr=+RULES.crescimento||0,gr=1+cr/100;
+  // vendo o mês atual (ou um mês passado), o quadro já mostra o PRÓXIMO mês, que é o que está sendo preparado
+  const fut=new Date(VY,VM,1)>new Date(now.getFullYear(),now.getMonth(),1),dt=fut?new Date(VY,VM,1):new Date(now.getFullYear(),now.getMonth()+1,1);
+  const PY=dt.getFullYear(),PM=dt.getMonth(),k=PLANO_K=ym(PY,PM),plano=(RULES.metasMes||{})[k],M=metasDoMes(k),cr=+RULES.crescimento||0,gr=1+cr/100;
   const atual=ym(now.getFullYear(),now.getMonth()),lib=plano?plano.liberado!==false:k<=atual;
-  const bk=ym(VY-1,VM),da=new Date(VY-1,VM-1,1),bkAnt=ym(da.getFullYear(),da.getMonth());
+  const bk=ym(PY-1,PM),da=new Date(PY-1,PM-1,1),bkAnt=ym(da.getFullYear(),da.getMonth());
   const temBase=!!HIST[bk],fonte=temBase?bk:(HIST[bkAnt]?bkAnt:null),val=fonte?(HIST[fonte].valores||{}):{};
   const nomeMes=k2=>{const [y,m]=k2.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString("pt-BR",{month:"short",year:"numeric"}).replace(". de ","/").replace(" de ","/")};
   const soma=o=>Object.values(o||{}).reduce((a,x)=>a+(+x||0),0),base=Object.values(val).reduce((a,o)=>a+soma(o),0);
   const grupos=[];SEGS.forEach(sg=>{const g=grupoDe(sg)||[sg];if(grupos.some(x=>x.k===g[0]))return;const b=g.reduce((a,m)=>a+soma(val[m]),0);if(b>0)grupos.push({k:g[0],nome:g.map(segNome).join(" + "),b})});
   const prods=RULES.produtos.filter(p=>!p.porto).map(p=>({nome:p.nome.replace(" (sem saúde e odonto)",""),b:Object.values(val).reduce((a,o)=>a+(+(o||{})[p.id]||0),0)})).filter(p=>p.b>0);
   const lin=l=>l.map(x=>`<tr><td>${esc(x.nome)}</td><td class="r n">${R(x.b)}</td><td class="r n strong">${R(x.b*gr)}</td></tr>`).join("");
-  return `<div class="card-h"><h2>Metas de ${mesNome().toLowerCase()}</h2><span class="badge">${lib?"liberadas para a equipe":"só você vê"}</span></div>
+  return `<div class="card-h"><h2>Metas de ${dt.toLocaleDateString("pt-BR",{month:"long",year:"numeric"})}</h2><span class="badge">${lib?"liberadas para a equipe":"só você vê"}</span></div>
   ${fonte?(temBase?"":`<div class="al warn">Estimativa: ainda faltam as vendas de ${nomeMes(bk)} (ano anterior). Usei ${nomeMes(fonte)} como base até você lançar ${nomeMes(bk)} na tabela "Vendas do ano anterior" abaixo.</div>`):`<div class="al warn">Falta lançar as vendas de ${nomeMes(bk)} na tabela "Vendas do ano anterior" abaixo para calcular as metas de produção.</div>`}
   <div class="plano-g">
    <div><h3>Produção</h3><div class="kv"><span>Base ${fonte?nomeMes(fonte):"—"}</span><b>${R(base)}</b></div><div class="kv"><span>Meta (+${cr}%)</span><b>${R(base*gr)}</b></div>
@@ -677,7 +679,7 @@ function planoHTML(C){
 }
 document.addEventListener("input",e=>{if(e.target.closest("#plano"))planoDirty=true});
 document.addEventListener("click",async e=>{if(!e.target.closest("#plSave"))return;
-  const k=ym(VY,VM),r=JSON.parse(JSON.stringify(RULES));delete r.metasOcultas;
+  const k=PLANO_K,r=JSON.parse(JSON.stringify(RULES));delete r.metasOcultas;
   (r.metasMes??={})[k]={renovacoes:Math.max(0,+$("plR").value||0),novos:Math.max(0,+$("plN").value||0),liberado:$("plL").checked};
   $("plSave").disabled=true;
   try{await api("PUT","/api/regras",r);planoDirty=false;toast($("plL").checked?"Metas salvas e liberadas para a equipe":"Metas salvas: só você vê");await load()}

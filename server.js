@@ -3,6 +3,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const path = require("path");
+const fs = require("fs");
 const store = require("./store");
 
 const PORT = process.env.PORT || 3000;
@@ -292,4 +293,15 @@ app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
 app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ erro: "Erro no servidor. Tente de novo." }); });
 
-store.init().then(() => app.listen(PORT, () => console.log(`Quadrata - Metas no ar na porta ${PORT} (${store.tipo})`)));
+// Dados que o Claude preparou (ex.: produção de nov/2025 tirada do relatório do SICS): entram uma vez,
+// só se ainda não existirem, para o Fabricio não precisar colar nada. Nunca sobrescreve o que já foi salvo.
+async function aplicaSeed() {
+  const f = path.join(__dirname, "data", "seed.json");
+  if (!fs.existsSync(f)) return;
+  const seed = JSON.parse(fs.readFileSync(f, "utf8")), e = await store.estado();
+  for (const [k, valores] of Object.entries(seed.historico || {}))
+    if (!(e.historico || {})[k]) { await store.setHistorico(k, valores); console.log("seed: histórico " + k); }
+  const mm = (e.regras || {}).metasMes || {}, novos = Object.entries(seed.metasMes || {}).filter(([k]) => !mm[k]);
+  if (novos.length) { await store.setRegras({ ...(e.regras || {}), metasMes: { ...mm, ...Object.fromEntries(novos) } }); console.log("seed: metas " + novos.map(([k]) => k)); }
+}
+store.init().then(aplicaSeed).then(() => app.listen(PORT, () => console.log(`Quadrata - Metas no ar na porta ${PORT} (${store.tipo})`)));

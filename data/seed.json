@@ -1,0 +1,42 @@
+{
+ "_nota": "Produção de nov/2025 (SICS Produção por período, sem endossos e sem duplicadas). Só entra se o mês ainda não tiver histórico salvo.",
+ "historico": {
+  "2025-11": {
+   "PORTO": {
+    "auto": 28385.74,
+    "resid": 338.62,
+    "vida": 4853.58,
+    "empre": 10895.43,
+    "outros": 339.34
+   },
+   "AZUL": {
+    "auto": 77245.19
+   },
+   "ALLIANZ": {
+    "auto": 2825.01,
+    "empre": 8470.94
+   },
+   "TOKIO MARINE": {
+    "auto": 16462.09,
+    "outros": 2645.1
+   },
+   "BRADESCO": {
+    "auto": 7370.67
+   },
+   "SUHAI": {
+    "auto": 25716.56
+   },
+   "ZURICH": {
+    "auto": 4095.68
+   },
+   "ALIRO": {
+    "auto": 6926.46
+   }
+  }
+ },
+ "metasMes": {
+  "2026-11": {
+   "liberado": false
+  }
+ }
+}
